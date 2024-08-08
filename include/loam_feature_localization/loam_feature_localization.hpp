@@ -24,15 +24,33 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/pose_with_covariance.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <nav_msgs/msg/path.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
+#include <tf2_ros/transform_broadcaster.h>
 
 #include <boost/filesystem.hpp>
 
 #include <cv_bridge/cv_bridge.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/point_cloud.h>
+#include <pcl/kdtree/kdtree_flann.h>
+
+#include <gtsam/geometry/Rot3.h>
+#include <gtsam/geometry/Pose3.h>
+#include <gtsam/slam/PriorFactor.h>
+#include <gtsam/slam/BetweenFactor.h>
+#include <gtsam/navigation/GPSFactor.h>
+#include <gtsam/navigation/ImuFactor.h>
+#include <gtsam/navigation/CombinedImuFactor.h>
+#include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
+#include <gtsam/nonlinear/Marginals.h>
+#include <gtsam/nonlinear/Values.h>
+#include <gtsam/inference/Symbol.h>
+#include <gtsam/nonlinear/ISAM2.h>
 
 #include <deque>
 #include <memory>
@@ -200,6 +218,109 @@ private:
   void extractFeatures();
   void freeCloudInfoMemory();
 //  void publishFeatureCloud();
+
+
+  // Feature Matching
+
+  gtsam::NonlinearFactorGraph gtSAMgraph;
+  gtsam::Values initialEstimate;
+  gtsam::Values optimizedEstimate;
+  gtsam::ISAM2 *isam;
+  gtsam::Values isamCurrentEstimate;
+  Eigen::MatrixXd poseCovariance;
+
+  std::vector<pcl::PointCloud<PointType>::Ptr> cornerCloudKeyFrames;
+  std::vector<pcl::PointCloud<PointType>::Ptr> surfCloudKeyFrames;
+
+  pcl::PointCloud<PointType>::Ptr cloudKeyPoses3D;
+  pcl::PointCloud<PointTypePose>::Ptr cloudKeyPoses6D;
+  pcl::PointCloud<PointType>::Ptr copy_cloudKeyPoses3D;
+  pcl::PointCloud<PointTypePose>::Ptr copy_cloudKeyPoses6D;
+
+  pcl::PointCloud<PointType>::Ptr laserCloudCornerLast; // corner feature set from odoOptimization
+  pcl::PointCloud<PointType>::Ptr laserCloudSurfLast; // surf feature set from odoOptimization
+  pcl::PointCloud<PointType>::Ptr laserCloudCornerLastDS; // downsampled corner feature set from odoOptimization
+  pcl::PointCloud<PointType>::Ptr laserCloudSurfLastDS; // downsampled surf feature set from odoOptimization
+
+  pcl::PointCloud<PointType>::Ptr laserCloudOri;
+  pcl::PointCloud<PointType>::Ptr coeffSel;
+
+  std::vector<PointType> laserCloudOriCornerVec; // corner point holder for parallel computation
+  std::vector<PointType> coeffSelCornerVec;
+  std::vector<bool> laserCloudOriCornerFlag;
+  std::vector<PointType> laserCloudOriSurfVec; // surf point holder for parallel computation
+  std::vector<PointType> coeffSelSurfVec;
+  std::vector<bool> laserCloudOriSurfFlag;
+
+  std::map<int, std::pair<pcl::PointCloud<PointType>, pcl::PointCloud<PointType>>> laserCloudMapContainer;
+  pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMap;
+  pcl::PointCloud<PointType>::Ptr laserCloudSurfFromMap;
+  pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMapDS;
+  pcl::PointCloud<PointType>::Ptr laserCloudSurfFromMapDS;
+  pcl::PointCloud<PointType>::Ptr map_corner;
+  pcl::PointCloud<PointType>::Ptr map_surface;
+
+  pcl::KdTreeFLANN<PointType>::Ptr kdtreeCornerFromMap;
+  pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurfFromMap;
+
+  pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurroundingKeyPoses;
+  pcl::KdTreeFLANN<PointType>::Ptr kdtreeHistoryKeyPoses;
+
+  pcl::VoxelGrid<PointType> downSizeFilterCorner;
+  pcl::VoxelGrid<PointType> downSizeFilterSurf;
+  pcl::VoxelGrid<PointType> downSizeFilterICP;
+  pcl::VoxelGrid<PointType> downSizeFilterSurroundingKeyPoses; // for surrounding key poses of scan-to-map optimization
+
+  rclcpp::Time timeLaserInfoStamp;
+  double timeLaserInfoCur;
+
+  float transformTobeMapped[6];
+
+  std::mutex mtx;
+  std::mutex mtxLoopInfo;
+
+  bool isDegenerate = false;
+  Eigen::Matrix<float, 6, 6> matP;
+
+  int laserCloudCornerFromMapDSNum = 0;
+  int laserCloudSurfFromMapDSNum = 0;
+  int laserCloudCornerLastDSNum = 0;
+  int laserCloudSurfLastDSNum = 0;
+
+  bool aLoopIsClosed = false;
+  std::map<int, int> loopIndexContainer; // from new to old
+  std::vector<std::pair<int, int>> loopIndexQueue;
+  std::vector<gtsam::Pose3> loopPoseQueue;
+  std::vector<gtsam::noiseModel::Diagonal::shared_ptr> loopNoiseQueue;
+  std::deque<std_msgs::msg::Float64MultiArray> loopInfoVec;
+
+  nav_msgs::msg::Path globalPath;
+
+  Eigen::Affine3f transPointAssociateToMap;
+  Eigen::Affine3f incrementalOdometryAffineFront;
+  Eigen::Affine3f incrementalOdometryAffineBack;
+
+  std::unique_ptr<tf2_ros::TransformBroadcaster> br;
+
+  void extractSurroundingKeyFrames();
+  void extractNearby();
+  void extractCloud(pcl::PointCloud<PointType>::Ptr cloudToExtract);
+  pcl::PointCloud<PointType>::Ptr transformPointCloud(pcl::PointCloud<PointType>::Ptr cloudIn, PointTypePose* transformIn);
+  void downsampleCurrentScan();
+  void scan2MapOptimization();
+  void cornerOptimization();
+  void surfOptimization();
+  void combineOptimizationCoeffs();
+  bool LMOptimization(int iterCount);
+  void transformUpdate();
+  void updatePointAssociateToMap();
+  Eigen::Affine3f trans2Affine3f(float transformIn[]);
+  void pointAssociateToMap(PointType const * const pi, PointType * const po);
+  float constraintTransformation(float value, float limit);
+  void saveKeyFramesAndFactor();
+  bool saveFrame();
+
+
 
 
 
