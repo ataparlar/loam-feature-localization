@@ -1,0 +1,32 @@
+<launch>
+    <arg name="param_file" default="$(find-pkg-share loam_feature_localization)/config/loam_feature_localization.param.yaml"/>
+
+    <!-- Topics -->
+    <arg name="imu_topic" default="aaa" description="Imu topic"/>
+    <arg name="odom_topic" default="bbb" description="Odometry topic"/>
+    <arg name="point_cloud_topic" default="ccc" description="Point cloud topic"/>
+    <arg name="lidar_min_range" default="2.0" description="Minimum LiDAR range"/>
+    <arg name="lidar_max_range" default="120.0" description="Maximum LiDAR range"/>
+
+<!--    <arg name="output_pose_topic" default="ndt_pose" description="Estimated self position"/>-->
+<!--    <arg name="output_pose_with_covariance_topic" default="ndt_pose_with_covariance" description="Estimated self position with covariance"/>-->
+
+<!--    <arg name="client_map_loader" default="pcd_loader_service" description="Trigger node service name"/>-->
+
+    <arg name="node_name" default="loam_feature_localization" description="Use a different name for this node"/>
+
+    <node pkg="loam_feature_localization" exec="loam_feature_localization_node" name="$(var node_name)" output="both">
+        <remap from="aaa" to="$(var imu_topic)"/>
+        <remap from="bbb" to="$(var odom_topic)"/>
+        <remap from="ccc" to="$(var point_cloud_topic)"/>
+        <remap from="2.0" to="$(var lidar_min_range)"/>
+        <remap from="120.0" to="$(var lidar_max_range)"/>
+
+<!--        <remap from="ndt_pose" to="$(var output_pose_topic)"/>-->
+<!--        <remap from="ndt_pose_with_covariance" to="$(var output_pose_with_covariance_topic)"/>-->
+
+<!--        <remap from="pcd_loader_service" to="$(var client_map_loader)"/>-->
+
+        <param from="$(var param_file)"/>
+    </node>
+</launch>
