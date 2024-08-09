@@ -3,6 +3,8 @@
     imu_topic: /applanix/lvx_client/imu_raw
     odom_topic: /applanix/lvx_client/odom
     point_cloud_topic: /hesai/pandar
+    output_odometry_frame: odom
+
     corner_map_path: /home/ataparlar/data/task_specific/loam_feature_localization/bomonti_tunnel/bomonti_corner.pcd
     surface_map_path: /home/ataparlar/data/task_specific/loam_feature_localization/bomonti_tunnel/bomonti_surface_ss.pcd
 

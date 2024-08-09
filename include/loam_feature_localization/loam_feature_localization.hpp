@@ -73,6 +73,7 @@ private:
   std::string point_cloud_topic_;
   std::string imu_topic_;
   std::string odom_topic_;
+  std::string output_odometry_frame_;
   std::string corner_map_path_;
   std::string surface_map_path_;
   double lidar_imu_x_;
@@ -112,10 +113,13 @@ private:
   //  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubExtractedCloud;
   //  rclcpp::Publisher<Utils::CloudInfo>::SharedPtr pubLaserCloudInfo;
 
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubMapCorner;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubMapSurface;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCloudBasic;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCloudUndistorted;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCornerCloud;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubSurfaceCloud;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubLaserOdometryGlobal;
 
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr subImu;
   rclcpp::CallbackGroup::SharedPtr callbackGroupImu;
@@ -222,7 +226,7 @@ private:
 
   // Feature Matching
 
-  gtsam::NonlinearFactorGraph gtSAMgraph;
+    gtsam::NonlinearFactorGraph gtSAMgraph;
   gtsam::Values initialEstimate;
   gtsam::Values optimizedEstimate;
   gtsam::ISAM2 *isam;
@@ -302,6 +306,7 @@ private:
 
   std::unique_ptr<tf2_ros::TransformBroadcaster> br;
 
+  void updateInitialGuess();
   void extractSurroundingKeyFrames();
   void extractNearby();
   void extractCloud(pcl::PointCloud<PointType>::Ptr cloudToExtract);
@@ -319,10 +324,13 @@ private:
   float constraintTransformation(float value, float limit);
   void saveKeyFramesAndFactor();
   bool saveFrame();
-
-
-
-
+  Eigen::Affine3f pclPointToAffine3f(PointTypePose thisPoint);
+  void updatePath(const PointTypePose& pose_in);
+  void correctPoses();
+  void publishOdometry();
+  void addOdomFactor();
+  gtsam::Pose3 trans2gtsamPose(float transformIn[]);
+  gtsam::Pose3 pclPointTogtsamPose3(PointTypePose thisPoint);
 
 };
 }  // namespace loam_feature_localization
