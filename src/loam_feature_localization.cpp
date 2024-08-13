@@ -152,6 +152,11 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
   parameters.relinearizeSkip = 1;
   isam = new gtsam::ISAM2(parameters);
 
+  downSizeFilterCorner.setLeafSize(mapping_corner_leaf_size_, mapping_corner_leaf_size_, mapping_corner_leaf_size_);
+  downSizeFilterSurf.setLeafSize(mapping_surf_leaf_size_, mapping_surf_leaf_size_, mapping_surf_leaf_size_);
+  downSizeFilterICP.setLeafSize(mapping_surf_leaf_size_, mapping_surf_leaf_size_, mapping_surf_leaf_size_);
+  downSizeFilterSurroundingKeyPoses.setLeafSize(surrounding_key_frame_density_, surrounding_key_frame_density_, surrounding_key_frame_density_); // for surrounding key poses of scan-to-map optimization
+
   allocateMemory();
 }
 
@@ -745,6 +750,14 @@ void LoamFeatureLocalization::allocateMemory()
     PCL_ERROR("Couldn't read surface cloud");
     PCL_ERROR("Couldn't read surface cloud \n");
   }
+
+  laserCloudCornerFromMapDSNum = map_corner->size();
+  laserCloudSurfFromMapDSNum = map_surface->size();
+  laserCloudCornerFromMap = map_corner;
+  laserCloudCornerFromMapDS = map_corner;
+  laserCloudSurfFromMap = map_surface;
+  laserCloudSurfFromMapDS = map_surface;
+
   sensor_msgs::msg::PointCloud2 ros_cloud_corner;
   pcl::toROSMsg(*map_corner, ros_cloud_corner);
   sensor_msgs::msg::PointCloud2 ros_cloud_surface;
@@ -1011,18 +1024,12 @@ void LoamFeatureLocalization::updateInitialGuess()
   // save current transformation before any processing
   incrementalOdometryAffineFront = trans2Affine3f(transformTobeMapped);  // lidar tf ?
 
-  std::cout << "initial guess 1" << std::endl;
-
-  std::cout << "cloudKeyPoses3D->points.size(): " << cloudKeyPoses3D->points.size() << std::endl;
-
   static Eigen::Affine3f lastImuTransformation;
   // initialization
   if (cloudKeyPoses3D->points.empty()) {
-    std::cout << "a" << std::endl;
     transformTobeMapped[0] = cloudInfo.imu_roll_init;
     transformTobeMapped[1] = cloudInfo.imu_pitch_init;
     transformTobeMapped[2] = cloudInfo.imu_yaw_init;
-    std::cout << "b" << std::endl;
 
     //    if (!useImuHeadingInitialization)
     //      transformTobeMapped[2] = 0;
@@ -1030,10 +1037,8 @@ void LoamFeatureLocalization::updateInitialGuess()
     lastImuTransformation = pcl::getTransformation(
       0, 0, 0, cloudInfo.imu_roll_init, cloudInfo.imu_pitch_init,
       cloudInfo.imu_yaw_init);  // save imu before return;
-    std::cout << "c" << std::endl;
     //    return;
   }
-  std::cout << "initial guess 2" << std::endl;
 
   // use imu pre-integration estimation for pose guess
   static bool lastImuPreTransAvailable = false;
@@ -1061,7 +1066,6 @@ void LoamFeatureLocalization::updateInitialGuess()
       return;
     }
   }
-  std::cout << "initial guess 3" << std::endl;
 
   // use imu incremental estimation for pose guess (only rotation)
   if (cloudInfo.imu_available == true) {
@@ -1080,7 +1084,6 @@ void LoamFeatureLocalization::updateInitialGuess()
       cloudInfo.imu_yaw_init);  // save imu before return;
     return;
   }
-  std::cout << "initial guess 4" << std::endl;
 }
 
 void LoamFeatureLocalization::extractSurroundingKeyFrames()
@@ -1093,7 +1096,6 @@ void LoamFeatureLocalization::extractSurroundingKeyFrames()
   // } else {
   //     extractNearby();
   // }
-  std::cout << "buraya geldi mi ?" << std::endl;
   extractNearby();
 }
 
@@ -1163,14 +1165,18 @@ void LoamFeatureLocalization::extractCloud(pcl::PointCloud<PointType>::Ptr cloud
 
   // Downsample the surrounding corner key frames (or map)
   //        downSizeFilterCorner.setInputCloud(laserCloudCornerFromMap);
-  downSizeFilterCorner.setInputCloud(map_corner);
-  downSizeFilterCorner.filter(*laserCloudCornerFromMapDS);
-  laserCloudCornerFromMapDSNum = laserCloudCornerFromMapDS->size();
+//  downSizeFilterCorner.setInputCloud(map_corner);
+//  downSizeFilterCorner.filter(*laserCloudCornerFromMapDS);
+//  laserCloudCornerFromMapDSNum = laserCloudCornerFromMapDS->size();
+//  laserCloudCornerFromMapDSNum = map_corner->size();
+
   // Downsample the surrounding surf key frames (or map)
   //        downSizeFilterSurf.setInputCloud(laserCloudSurfFromMap);
-  downSizeFilterSurf.setInputCloud(map_surface);
-  downSizeFilterSurf.filter(*laserCloudSurfFromMapDS);
-  laserCloudSurfFromMapDSNum = laserCloudSurfFromMapDS->size();
+//  downSizeFilterSurf.setInputCloud(map_surface);
+//  downSizeFilterSurf.filter(*laserCloudSurfFromMapDS);
+//  laserCloudSurfFromMapDSNum = laserCloudSurfFromMapDS->size();
+//  laserCloudSurfFromMapDSNum = map_surface->size();
+
 
   // clear map cache if too large
   if (laserCloudMapContainer.size() > 1000) laserCloudMapContainer.clear();
@@ -1206,12 +1212,14 @@ void LoamFeatureLocalization::downsampleCurrentScan()
 {
   // Downsample cloud from current scan
   laserCloudCornerLastDS->clear();
-  downSizeFilterCorner.setInputCloud(laserCloudCornerLast);
+//  downSizeFilterCorner.setInputCloud(laserCloudCornerLast);
+  downSizeFilterCorner.setInputCloud(cornerCloud);
   downSizeFilterCorner.filter(*laserCloudCornerLastDS);
   laserCloudCornerLastDSNum = laserCloudCornerLastDS->size();
 
   laserCloudSurfLastDS->clear();
-  downSizeFilterSurf.setInputCloud(laserCloudSurfLast);
+//  downSizeFilterSurf.setInputCloud(laserCloudSurfLast);
+  downSizeFilterSurf.setInputCloud(surfaceCloud);
   downSizeFilterSurf.filter(*laserCloudSurfLastDS);
   laserCloudSurfLastDSNum = laserCloudSurfLastDS->size();
 }
@@ -1667,9 +1675,6 @@ void LoamFeatureLocalization::saveKeyFramesAndFactor()
 
   // update iSAM
 
-  std::cout << "saveKeyFramesAndFactor 1" << std::endl;
-
-  std::cout << "initialEstimate.size(): " << initialEstimate.size() << std::endl;
   isam->update(gtSAMgraph, initialEstimate);
   isam->update();
 
@@ -1681,26 +1686,18 @@ void LoamFeatureLocalization::saveKeyFramesAndFactor()
     isam->update();
   }
 
-  std::cout << "saveKeyFramesAndFactor 2" << std::endl;
-
   gtSAMgraph.resize(0);
   initialEstimate.clear();
-  std::cout << "saveKeyFramesAndFactor 2 - 1" << std::endl;
 
   // save key poses
   PointType thisPose3D;
   PointTypePose thisPose6D;
   gtsam::Pose3 latestEstimate;
 
-  std::cout << "saveKeyFramesAndFactor 2 - 2" << std::endl;
   isamCurrentEstimate = isam->calculateEstimate();
-  std::cout << "saveKeyFramesAndFactor 2 - 3" << std::endl;
-  std::cout << "isamCurrentEstimate.size(): " << isamCurrentEstimate.size() << std::endl;
   latestEstimate = isamCurrentEstimate.at<gtsam::Pose3>(isamCurrentEstimate.size() - 1);
   // cout << "****************************************************" << endl;
   // isamCurrentEstimate.print("Current estimate: ");
-
-  std::cout << "saveKeyFramesAndFactor 3" << std::endl;
 
   thisPose3D.x = latestEstimate.translation().x();
   thisPose3D.y = latestEstimate.translation().y();
@@ -1741,11 +1738,9 @@ void LoamFeatureLocalization::saveKeyFramesAndFactor()
   cornerCloudKeyFrames.push_back(thisCornerKeyFrame);
   surfCloudKeyFrames.push_back(thisSurfKeyFrame);
 
-  std::cout << "saveKeyFramesAndFactor 4" << std::endl;
 
   // save path for visualization
   updatePath(thisPose6D);
-  std::cout << "saveKeyFramesAndFactor 5" << std::endl;
 }
 
 bool LoamFeatureLocalization::saveFrame()
@@ -1762,6 +1757,11 @@ bool LoamFeatureLocalization::saveFrame()
   Eigen::Affine3f transFinal = pcl::getTransformation(
     transformTobeMapped[3], transformTobeMapped[4], transformTobeMapped[5], transformTobeMapped[0],
     transformTobeMapped[1], transformTobeMapped[2]);
+
+//  std::cout << "\n\ntransformTobeMapped[0]: " << transformTobeMapped[0] <<
+//    "\ntransformTobeMapped[1]" << transformTobeMapped[1] <<
+//    "\ntransformTobeMapped[2]" << transformTobeMapped[2] << std::endl;
+
   Eigen::Affine3f transBetween = transStart.inverse() * transFinal;
   float x, y, z, roll, pitch, yaw;
   pcl::getTranslationAndEulerAngles(transBetween, x, y, z, roll, pitch, yaw);
