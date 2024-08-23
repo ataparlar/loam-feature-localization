@@ -63,6 +63,8 @@ class FeatureExtraction
   using SharedPtr = std::shared_ptr<FeatureExtraction>;
   using ConstSharedPtr = const std::shared_ptr<FeatureExtraction>;
 
+  explicit FeatureExtraction();
+
 };
 }
 

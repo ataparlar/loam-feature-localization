@@ -63,6 +63,7 @@ class ImuPreintegration
   using SharedPtr = std::shared_ptr<ImuPreintegration>;
   using ConstSharedPtr = const std::shared_ptr<ImuPreintegration>;
 
+  explicit ImuPreintegration();
 };
 }
 

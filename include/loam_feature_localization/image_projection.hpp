@@ -63,6 +63,7 @@ class ImageProjection
   using SharedPtr = std::shared_ptr<ImageProjection>;
   using ConstSharedPtr = const std::shared_ptr<ImageProjection>;
 
+  explicit ImageProjection();
 };
 }
 

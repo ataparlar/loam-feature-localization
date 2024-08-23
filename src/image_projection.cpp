@@ -11,3 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+#include "loam_feature_localization/image_projection.hpp"
+
+namespace loam_feature_localization
+{
+ImageProjection::ImageProjection()
+{
+
+}
+} // namespace loam_feature_localization
