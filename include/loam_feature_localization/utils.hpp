@@ -92,9 +92,10 @@ public:
   using SharedPtr = std::shared_ptr<Utils>;
   using ConstSharedPtr = const SharedPtr;
 
-  explicit Utils(
-    double lidar_imu_roll_, double lidar_imu_pitch_, double lidar_imu_yaw_, double lidar_imu_x_,
-    double lidar_imu_y_, double lidar_imu_z_);
+//  explicit Utils(
+//    double lidar_imu_roll_, double lidar_imu_pitch_, double lidar_imu_yaw_, double lidar_imu_x_,
+//    double lidar_imu_y_, double lidar_imu_z_);
+  explicit Utils();
 
   std::string byte_hex_to_string(uint8_t byte_hex);
   std::string bytes_hexes_to_string(const std::vector<uint8_t> & bytes_hexes);

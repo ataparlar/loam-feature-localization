@@ -27,22 +27,24 @@
 namespace loam_feature_localization
 {
 
-Utils::Utils(double lidar_imu_roll_, double lidar_imu_pitch_, double lidar_imu_yaw_,
-             double lidar_imu_x_, double lidar_imu_y_, double lidar_imu_z_)
-{
-    Eigen::Matrix3d matrix;
-    matrix.topLeftCorner<3, 3>() =
-      Eigen::AngleAxisd(deg_to_rad(lidar_imu_yaw_), Eigen::Vector3d::UnitZ()).toRotationMatrix() *
-      Eigen::AngleAxisd(deg_to_rad(lidar_imu_pitch_), Eigen::Vector3d::UnitY()).toRotationMatrix() *
-      Eigen::AngleAxisd(deg_to_rad(lidar_imu_roll_), Eigen::Vector3d::UnitX()).toRotationMatrix();
-    Eigen::Vector3d vector(lidar_imu_x_, lidar_imu_y_, lidar_imu_z_);
-    Eigen::Quaterniond quat(matrix);
-
-    extRot = matrix;
-    extRPY = matrix;
-    extTrans = vector;
-    extQRPY = quat;
-}
+//Utils::Utils(double lidar_imu_roll_, double lidar_imu_pitch_, double lidar_imu_yaw_,
+//             double lidar_imu_x_, double lidar_imu_y_, double lidar_imu_z_)
+//{
+//    Eigen::Matrix3d matrix;
+//    matrix.topLeftCorner<3, 3>() =
+//      Eigen::AngleAxisd(deg_to_rad(lidar_imu_yaw_), Eigen::Vector3d::UnitZ()).toRotationMatrix() *
+//      Eigen::AngleAxisd(deg_to_rad(lidar_imu_pitch_), Eigen::Vector3d::UnitY()).toRotationMatrix() *
+//      Eigen::AngleAxisd(deg_to_rad(lidar_imu_roll_), Eigen::Vector3d::UnitX()).toRotationMatrix();
+//    Eigen::Vector3d vector(lidar_imu_x_, lidar_imu_y_, lidar_imu_z_);
+//    Eigen::Quaterniond quat(matrix);
+//
+//    extRot = matrix;
+//    extRPY = matrix;
+//    extTrans = vector;
+//    extQRPY = quat;
+//}
+Utils::Utils()
+{}
 
 std::string Utils::byte_hex_to_string(uint8_t byte_hex)
 {

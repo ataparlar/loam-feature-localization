@@ -16,6 +16,7 @@
 #define LOAM_FEATURE_LOCALIZATION__LOAM_FEATURE_LOCALIZATION_HPP_
 
 #include "utils.hpp"
+#include "imu_preintegration.hpp"
 
 #include <Eigen/Geometry>
 #include <opencv2/opencv.hpp>
@@ -103,7 +104,10 @@ private:
   double surrounding_key_frame_density_;
   double surrounding_key_frame_search_radius_;
 
-  Utils::SharedPtr utils;
+  Utils::SharedPtr utils_;
+  ImuPreintegration::SharedPtr imu_preintegration_;
+  TransformFusion::SharedPtr transform_fusion_;
+
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subLaserCloud;
   rclcpp::CallbackGroup::SharedPtr callbackGroupLidar;
@@ -119,74 +123,22 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCloudUndistorted;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCornerCloud;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubSurfaceCloud;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubImuOdom;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubLaserOdometryGlobal;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pubImuPath;
 
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr subImu;
   rclcpp::CallbackGroup::SharedPtr callbackGroupImu;
   std::deque<sensor_msgs::msg::Imu> imuQueue;
 
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subOdom;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subImuOdom;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subLaserOdom;
   rclcpp::CallbackGroup::SharedPtr callbackGroupOdom;
-  std::deque<nav_msgs::msg::Odometry> odomQueue;
 
-  std::deque<sensor_msgs::msg::PointCloud2> cloudQueue;
-  sensor_msgs::msg::PointCloud2 currentCloudMsg;
-
-  //  pcl::PointCloud<PointXYZIRT>::Ptr laserCloudIn;
-
-  // Image Projection
-
-  std::mutex imuLock;
-  std::mutex odoLock;
-
-  double * imuTime = new double[queueLength];
-  double * imuRotX = new double[queueLength];
-  double * imuRotY = new double[queueLength];
-  double * imuRotZ = new double[queueLength];
-
-  int imuPointerCur;
-  bool firstPointFlag;
-  Eigen::Affine3f transStartInverse;
-
-  pcl::PointCloud<PointXYZIRT>::Ptr laserCloudIn;
-  pcl::PointCloud<OusterPointXYZIRT>::Ptr tmpOusterCloudIn;
-  pcl::PointCloud<PointType>::Ptr fullCloud;
-  pcl::PointCloud<PointType>::Ptr extractedCloud;
-  pcl::PointCloud<PointType>::Ptr cloudDeskewed;
-
-  int ringFlag = 0;
-  int deskewFlag;
-  cv::Mat rangeMat;
-  cv::Mat HSV;
-
-  bool odomDeskewFlag;
-  float odomIncreX;
-  float odomIncreY;
-  float odomIncreZ;
-
-  Utils::CloudInfo cloudInfo;
-  double timeScanCur;
-  double timeScanEnd;
-  std_msgs::msg::Header cloudHeader;
-
-  std::vector<int> columnIdnCountVec;
-
-  void imuHandler(const sensor_msgs::msg::Imu::SharedPtr imuMsg);
-  void odometryHandler(const nav_msgs::msg::Odometry::SharedPtr odometryMsg);
-  void cloudHandler(const sensor_msgs::msg::PointCloud2::SharedPtr laserCloudMsg);
-  bool cachePointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr & laserCloudMsg);
-  bool deskewInfo();
-  void imuDeskewInfo();
-  void odomDeskewInfo();
-  void publishImage();
-  void publishClouds(std::string frame_name);
-  void projectPointCloud();
-  void findRotation(double pointTime, float * rotXCur, float * rotYCur, float * rotZCur);
-  void findPosition(double relTime, float * posXCur, float * posYCur, float * posZCur);
-  PointType deskewPoint(PointType * point, double relTime);
-  void cloudExtraction();
-  void resetParameters();
-  void allocateMemory();
+  void imu_handler(const sensor_msgs::msg::Imu::SharedPtr imu_msg);
+  void imu_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
+  void laser_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
+  void cloud_handler(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
 
 
   // Feature Extraction
@@ -197,140 +149,7 @@ private:
   pcl::PointCloud<PointType>::Ptr cornerCloud;
   pcl::PointCloud<PointType>::Ptr surfaceCloud;
 
-  pcl::VoxelGrid<PointType> downSizeFilter;
 
-  struct smoothness_t
-  {
-    float value;
-    size_t ind;
-  };
-  struct by_value{
-    bool operator()(smoothness_t const &left, smoothness_t const &right) {
-      return left.value < right.value;
-    }
-  };
-
-  std::vector<smoothness_t> cloudSmoothness;
-  float * cloudCurvature;
-  int * cloudNeighborPicked;
-  int * cloudLabel;
-
-
-  void initializationValue();
-  void calculateSmoothness();
-  void markOccludedPoints();
-  void extractFeatures();
-  void freeCloudInfoMemory();
-//  void publishFeatureCloud();
-
-
-  // Feature Matching
-
-    gtsam::NonlinearFactorGraph gtSAMgraph;
-  gtsam::Values initialEstimate;
-  gtsam::Values optimizedEstimate;
-  gtsam::ISAM2 *isam;
-  gtsam::Values isamCurrentEstimate;
-  Eigen::MatrixXd poseCovariance;
-
-  std::vector<pcl::PointCloud<PointType>::Ptr> cornerCloudKeyFrames;
-  std::vector<pcl::PointCloud<PointType>::Ptr> surfCloudKeyFrames;
-
-  pcl::PointCloud<PointType>::Ptr cloudKeyPoses3D;
-  pcl::PointCloud<PointTypePose>::Ptr cloudKeyPoses6D;
-  pcl::PointCloud<PointType>::Ptr copy_cloudKeyPoses3D;
-  pcl::PointCloud<PointTypePose>::Ptr copy_cloudKeyPoses6D;
-
-  pcl::PointCloud<PointType>::Ptr laserCloudCornerLast; // corner feature set from odoOptimization
-  pcl::PointCloud<PointType>::Ptr laserCloudSurfLast; // surf feature set from odoOptimization
-  pcl::PointCloud<PointType>::Ptr laserCloudCornerLastDS; // downsampled corner feature set from odoOptimization
-  pcl::PointCloud<PointType>::Ptr laserCloudSurfLastDS; // downsampled surf feature set from odoOptimization
-
-  pcl::PointCloud<PointType>::Ptr laserCloudOri;
-  pcl::PointCloud<PointType>::Ptr coeffSel;
-
-  std::vector<PointType> laserCloudOriCornerVec; // corner point holder for parallel computation
-  std::vector<PointType> coeffSelCornerVec;
-  std::vector<bool> laserCloudOriCornerFlag;
-  std::vector<PointType> laserCloudOriSurfVec; // surf point holder for parallel computation
-  std::vector<PointType> coeffSelSurfVec;
-  std::vector<bool> laserCloudOriSurfFlag;
-
-  std::map<int, std::pair<pcl::PointCloud<PointType>, pcl::PointCloud<PointType>>> laserCloudMapContainer;
-  pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMap;
-  pcl::PointCloud<PointType>::Ptr laserCloudSurfFromMap;
-  pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMapDS;
-  pcl::PointCloud<PointType>::Ptr laserCloudSurfFromMapDS;
-  pcl::PointCloud<PointType>::Ptr map_corner;
-  pcl::PointCloud<PointType>::Ptr map_surface;
-
-  pcl::KdTreeFLANN<PointType>::Ptr kdtreeCornerFromMap;
-  pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurfFromMap;
-
-  pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurroundingKeyPoses;
-  pcl::KdTreeFLANN<PointType>::Ptr kdtreeHistoryKeyPoses;
-
-  pcl::VoxelGrid<PointType> downSizeFilterCorner;
-  pcl::VoxelGrid<PointType> downSizeFilterSurf;
-  pcl::VoxelGrid<PointType> downSizeFilterICP;
-  pcl::VoxelGrid<PointType> downSizeFilterSurroundingKeyPoses; // for surrounding key poses of scan-to-map optimization
-
-  rclcpp::Time timeLaserInfoStamp;
-  double timeLaserInfoCur;
-
-  float transformTobeMapped[6];
-
-  std::mutex mtx;
-  std::mutex mtxLoopInfo;
-
-  bool isDegenerate = false;
-  Eigen::Matrix<float, 6, 6> matP;
-
-  int laserCloudCornerFromMapDSNum = 0;
-  int laserCloudSurfFromMapDSNum = 0;
-  int laserCloudCornerLastDSNum = 0;
-  int laserCloudSurfLastDSNum = 0;
-
-  bool aLoopIsClosed = false;
-  std::map<int, int> loopIndexContainer; // from new to old
-  std::vector<std::pair<int, int>> loopIndexQueue;
-  std::vector<gtsam::Pose3> loopPoseQueue;
-  std::vector<gtsam::noiseModel::Diagonal::shared_ptr> loopNoiseQueue;
-  std::deque<std_msgs::msg::Float64MultiArray> loopInfoVec;
-
-  nav_msgs::msg::Path globalPath;
-
-  Eigen::Affine3f transPointAssociateToMap;
-  Eigen::Affine3f incrementalOdometryAffineFront;
-  Eigen::Affine3f incrementalOdometryAffineBack;
-
-  std::unique_ptr<tf2_ros::TransformBroadcaster> br;
-
-  void updateInitialGuess();
-  void extractSurroundingKeyFrames();
-  void extractNearby();
-  void extractCloud(pcl::PointCloud<PointType>::Ptr cloudToExtract);
-  pcl::PointCloud<PointType>::Ptr transformPointCloud(pcl::PointCloud<PointType>::Ptr cloudIn, PointTypePose* transformIn);
-  void downsampleCurrentScan();
-  void scan2MapOptimization();
-  void cornerOptimization();
-  void surfOptimization();
-  void combineOptimizationCoeffs();
-  bool LMOptimization(int iterCount);
-  void transformUpdate();
-  void updatePointAssociateToMap();
-  Eigen::Affine3f trans2Affine3f(float transformIn[]);
-  void pointAssociateToMap(PointType const * const pi, PointType * const po);
-  float constraintTransformation(float value, float limit);
-  void saveKeyFramesAndFactor();
-  bool saveFrame();
-  Eigen::Affine3f pclPointToAffine3f(PointTypePose thisPoint);
-  void updatePath(const PointTypePose& pose_in);
-  void correctPoses();
-  void publishOdometry();
-  void addOdomFactor();
-  gtsam::Pose3 trans2gtsamPose(float transformIn[]);
-  gtsam::Pose3 pclPointTogtsamPose3(PointTypePose thisPoint);
 
 };
 }  // namespace loam_feature_localization
