@@ -58,12 +58,18 @@
 
 namespace loam_feature_localization
 {
+const int queueLength = 2000;
 class ImageProjection
 {
+public:
   using SharedPtr = std::shared_ptr<ImageProjection>;
   using ConstSharedPtr = const std::shared_ptr<ImageProjection>;
 
   explicit ImageProjection();
+private:
+  std::mutex imuLock;
+  std::mutex odoLock;
+  
 };
 }
 
