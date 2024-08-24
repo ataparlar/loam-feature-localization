@@ -33,13 +33,20 @@ struct VelodynePointXYZIRT
 {
   PCL_ADD_POINT4D
   PCL_ADD_INTENSITY
-  uint16_t ring;
-  double timestamp;
+  uint8_t return_type;
+  uint16_t channel;
+  float azimuth;
+  float elevation;
+  float distance;
+  float time;
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 } EIGEN_ALIGN16;
 POINT_CLOUD_REGISTER_POINT_STRUCT(
-  VelodynePointXYZIRT, (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)
-                         (uint16_t, ring, ring)(double, timestamp, timestamp))
+  VelodynePointXYZIRT,
+  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(
+    uint16_t, return_type, return_type)(uint16_t, channel, channel)(float, azimuth, azimuth)(
+    float, elevation, elevation)(float, distance, distance)(float, time, time))
+
 
 struct OusterPointXYZIRT
 {

@@ -65,7 +65,18 @@ public:
   using SharedPtr = std::shared_ptr<ImageProjection>;
   using ConstSharedPtr = const std::shared_ptr<ImageProjection>;
 
-  explicit ImageProjection(int N_SCAN, int Horizon_SCAN);
+  explicit ImageProjection(
+    int N_SCAN, int Horizon_SCAN,
+    double lidar_max_range, double lidar_min_range,
+    std::string lidar_frame);
+
+  Utils::CloudInfo cloud_info;
+
+  void cloud_handler(
+    const sensor_msgs::msg::PointCloud2::SharedPtr laserCloudMsg, rclcpp::Logger logger_,
+    rclcpp::Time now, rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_deskewed);
+
+  void imu_handler(const sensor_msgs::msg::Imu::SharedPtr imuMsg);
 
 private:
   std::mutex imu_lock_;
@@ -75,12 +86,15 @@ private:
 
   int n_scan_;
   int horizon_scan_;
+  double lidar_max_range_;
+  double lidar_min_range_;
+  std::string lidar_frame_;
 
   std::deque<sensor_msgs::msg::Imu> imu_queue_;
   std::deque<nav_msgs::msg::Odometry> odom_queue_;
-  std::deque<pcl::PointCloud<PointType>> cloud_queue_;
+  std::deque<sensor_msgs::msg::PointCloud2> cloud_queue_;
 
-  pcl::PointCloud<PointType> current_cloud_msg_;
+  sensor_msgs::msg::PointCloud2 current_cloud_msg_;
 
   double * imu_time_ = new double[queueLength];
   double * imu_rot_x_ = new double[queueLength];
@@ -105,7 +119,6 @@ private:
   float odom_incre_y_;
   float odom_incre_z_;
 
-  Utils::CloudInfo cloud_info_;
   double time_scan_cur_;
   double time_scan_end_;
   std_msgs::msg::Header cloud_header_;
@@ -114,11 +127,9 @@ private:
 
   void allocate_memory();
   void reset_parameters();
-  void imu_handler(const sensor_msgs::msg::Imu::SharedPtr imuMsg);
   void odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odometryMsg);
-  void cloud_handler(const sensor_msgs::msg::PointCloud2::SharedPtr laserCloudMsg);
-  bool cache_point_cloud(const sensor_msgs::msg::PointCloud2::SharedPtr & laserCloudMsg);
-  bool deskew_info();
+  bool cache_point_cloud(const sensor_msgs::msg::PointCloud2::SharedPtr & laserCloudMsg, rclcpp::Logger logger_);
+  bool deskew_info(rclcpp::Logger logger_);
   void imu_deskew_info();
   void odom_deskew_info();
   void find_rotation(double pointTime, float * rotXCur, float * rotYCur, float * rotZCur);
@@ -126,7 +137,9 @@ private:
   PointType deskew_point(PointType * point, double relTime);
   void project_point_cloud();
   void cloud_extraction();
-  void publish_clouds();
+  void publish_clouds(
+    const rclcpp::Time & now,
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_deskewed);
 
 };
 } // namespace loam_feature_localization

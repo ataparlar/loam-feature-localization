@@ -99,46 +99,48 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
   callbackGroupImu = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   callbackGroupOdom = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-  auto lidarOpt = rclcpp::SubscriptionOptions();
-  lidarOpt.callback_group = callbackGroupLidar;
-  auto imuOpt = rclcpp::SubscriptionOptions();
-  imuOpt.callback_group = callbackGroupImu;
-  auto odomOpt = rclcpp::SubscriptionOptions();
-  odomOpt.callback_group = callbackGroupOdom;
+  auto lidar_opt = rclcpp::SubscriptionOptions();
+  lidar_opt.callback_group = callbackGroupLidar;
+  auto imu_opt = rclcpp::SubscriptionOptions();
+  imu_opt.callback_group = callbackGroupImu;
+  auto odom_opt = rclcpp::SubscriptionOptions();
+  odom_opt.callback_group = callbackGroupOdom;
 
-  subImu = create_subscription<sensor_msgs::msg::Imu>(
+  sub_imu = create_subscription<sensor_msgs::msg::Imu>(
     imu_topic_, rclcpp::SensorDataQoS(),
-    std::bind(&LoamFeatureLocalization::imu_handler, this, std::placeholders::_1), imuOpt);
-  subImuOdom = create_subscription<nav_msgs::msg::Odometry>(
+    std::bind(&LoamFeatureLocalization::imu_handler, this, std::placeholders::_1), imu_opt);
+  sub_odom_imu = create_subscription<nav_msgs::msg::Odometry>(
     "/odometry_incremental", rclcpp::SensorDataQoS(),
-    std::bind(&LoamFeatureLocalization::imu_odometry_handler, this, std::placeholders::_1), odomOpt);
-  subLaserOdom = create_subscription<nav_msgs::msg::Odometry>(
+    std::bind(&LoamFeatureLocalization::imu_odometry_handler, this, std::placeholders::_1), odom_opt);
+  sub_odom_laser = create_subscription<nav_msgs::msg::Odometry>(
     "/odometry_matched", rclcpp::SensorDataQoS(),
-    std::bind(&LoamFeatureLocalization::laser_odometry_handler, this, std::placeholders::_1), odomOpt);
-  subLaserCloud = create_subscription<sensor_msgs::msg::PointCloud2>(
+    std::bind(&LoamFeatureLocalization::laser_odometry_handler, this, std::placeholders::_1), odom_opt);
+  sub_cloud = create_subscription<sensor_msgs::msg::PointCloud2>(
     point_cloud_topic_, rclcpp::SensorDataQoS(),
-    std::bind(&LoamFeatureLocalization::cloud_handler, this, std::placeholders::_1), lidarOpt);
+    std::bind(&LoamFeatureLocalization::cloud_handler, this, std::placeholders::_1), lidar_opt);
 
-  pubRangeImage =
+  pub_range_matrix =
     create_publisher<sensor_msgs::msg::Image>("/range_image", rclcpp::SensorDataQoS());
-  pubMapCorner =
+  pub_map_corner =
     create_publisher<sensor_msgs::msg::PointCloud2>("/map_corner", rclcpp::SensorDataQoS());
-  pubMapSurface =
+  pub_map_surface =
     create_publisher<sensor_msgs::msg::PointCloud2>("/map_surface", rclcpp::SensorDataQoS());
-  pubCloudBasic =
-    create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_basic", rclcpp::SensorDataQoS());
-  pubCloudUndistorted =
+//  pubCloudBasic =
+//    create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_basic", rclcpp::SensorDataQoS());
+  pub_cloud_deskewed =
     create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_undistorted", rclcpp::SensorDataQoS());
-  pubCornerCloud =
+  pub_cloud_corner =
     create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_corner", rclcpp::SensorDataQoS());
-  pubSurfaceCloud =
+  pub_cloud_surface =
     create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_surface", rclcpp::SensorDataQoS());
-  pubImuOdom =
+  pub_odom_imu =
     create_publisher<nav_msgs::msg::Odometry>("/imu_odom", rclcpp::SensorDataQoS());
-  pubLaserOdometryGlobal =
+  pub_odom_laser =
     create_publisher<nav_msgs::msg::Odometry>("/laser_odom", rclcpp::SensorDataQoS());
-  pubImuPath =
+  pub_path_imu =
     create_publisher<nav_msgs::msg::Path>("/imu_odom", rclcpp::SensorDataQoS());
+  pub_path_laser =
+    create_publisher<nav_msgs::msg::Path>("/laser_odom", rclcpp::SensorDataQoS());
 
   float imu_gravity = 0.0;
   float imu_acc_noise = 0.0;
@@ -154,26 +156,37 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
     imu_gravity,
     imu_acc_noise, imu_acc_bias, imu_gyro_noise, imu_gyro_bias);
   transform_fusion_ = std::make_shared<TransformFusion>("base_link", "lidar_link", "odom_link");
-
-
-
+  image_projection_ = std::make_shared<ImageProjection>(
+    N_SCAN_, Horizon_SCAN_,
+    120.0, 0.0, "lidar_link");
+  feature_extraction_ = std::make_shared<FeatureExtraction>(
+    N_SCAN_, Horizon_SCAN_,
+    odometry_surface_leaf_size_,
+    edge_threshold_, surface_threshold_,
+    "lidar_link");
 }
 
 void LoamFeatureLocalization::imu_handler(const sensor_msgs::msg::Imu::SharedPtr imu_msg)
 {
-  imu_preintegration_->imu_handler(imu_msg, pubImuOdom);
-
-
+  imu_preintegration_->imu_handler(imu_msg, pub_odom_imu);
+  image_projection_->imu_handler(imu_msg);
 }
 
 void LoamFeatureLocalization::imu_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg)
 {
   imu_preintegration_->odometry_handler(odom_msg, this->get_logger());
-  transform_fusion_->imu_odometry_handler(odom_msg, this->get_logger(), pubImuOdom, pubImuPath);
-
+  transform_fusion_->imu_odometry_handler(odom_msg, this->get_logger(), pub_odom_imu, pub_path_imu);
 }
 
 void LoamFeatureLocalization::cloud_handler(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg)
+{
+  image_projection_->cloud_handler(
+    laser_cloud_msg, this->get_logger(), this->get_clock()->now(), pub_cloud_deskewed);
+  feature_extraction_->laser_cloud_info_handler(
+    image_projection_->cloud_info, laser_cloud_msg->header);
+  feature_extraction_->publish_feature_cloud(this->get_clock()->now(), pub_cloud_corner, pub_cloud_surface);
+}
+void LoamFeatureLocalization::laser_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg)
 {
 
 }

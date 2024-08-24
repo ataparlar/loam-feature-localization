@@ -17,6 +17,8 @@
 
 #include "utils.hpp"
 #include "imu_preintegration.hpp"
+#include "image_projection.hpp"
+#include "feature_extraction.hpp"
 
 #include <Eigen/Geometry>
 #include <opencv2/opencv.hpp>
@@ -59,8 +61,6 @@
 
 namespace loam_feature_localization
 {
-const int queueLength = 2000;
-
 class LoamFeatureLocalization : public rclcpp::Node
 {
 public:
@@ -107,32 +107,35 @@ private:
   Utils::SharedPtr utils_;
   ImuPreintegration::SharedPtr imu_preintegration_;
   TransformFusion::SharedPtr transform_fusion_;
+  ImageProjection::SharedPtr image_projection_;
+  FeatureExtraction::SharedPtr feature_extraction_;
 
 
-  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subLaserCloud;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud;
   rclcpp::CallbackGroup::SharedPtr callbackGroupLidar;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubLaserCloud;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pubRangeImage;
+//  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubLaserCloud;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_range_matrix;
 
   //  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubExtractedCloud;
   //  rclcpp::Publisher<Utils::CloudInfo>::SharedPtr pubLaserCloudInfo;
 
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubMapCorner;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubMapSurface;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCloudBasic;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCloudUndistorted;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCornerCloud;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubSurfaceCloud;
-  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubImuOdom;
-  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubLaserOdometryGlobal;
-  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pubImuPath;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_map_corner;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_map_surface;
+//  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCloudBasic;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_deskewed;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_corner;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_surface;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_imu;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_laser;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_imu;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_laser;
 
-  rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr subImu;
+  rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu;
   rclcpp::CallbackGroup::SharedPtr callbackGroupImu;
-  std::deque<sensor_msgs::msg::Imu> imuQueue;
+  std::deque<sensor_msgs::msg::Imu> imu_queue;
 
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subImuOdom;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subLaserOdom;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_imu;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_laser;
   rclcpp::CallbackGroup::SharedPtr callbackGroupOdom;
 
   void imu_handler(const sensor_msgs::msg::Imu::SharedPtr imu_msg);

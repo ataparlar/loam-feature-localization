@@ -30,12 +30,14 @@ set(LOAM_FEATURE_LOCALIZATION_SRC
         src/feature_extraction.cpp
         src/image_projection.cpp
         src/imu_preintegration.cpp
+        src/feature_matching.cpp
         src/utils.cpp)
 set(LOAM_FEATURE_LOCALIZATION_HEADERS
         include/loam_feature_localization/loam_feature_localization.hpp
         include/loam_feature_localization/feature_extraction.hpp
         include/loam_feature_localization/image_projection.hpp
         include/loam_feature_localization/imu_preintegration.hpp
+        include/loam_feature_localization/feature_matching.hpp
         include/loam_feature_localization/utils.hpp)
 
 
