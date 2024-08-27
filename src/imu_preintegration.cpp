@@ -25,10 +25,10 @@ using gtsam::symbol_shorthand::X;  // Pose3 (x,y,z,r,p,y)
 namespace loam_feature_localization
 {
 
-TransformFusion::TransformFusion(
+TransformFusion::TransformFusion( const Utils::SharedPtr & utils,
   std::string base_link_frame, std::string lidar_frame, std::string odometry_frame)
 {
-  utils = std::make_shared<Utils>();
+  utils_ = utils;
   base_link_frame_ = base_link_frame;
   odometry_frame_ = odometry_frame;
   lidar_frame_ = lidar_frame;
@@ -43,11 +43,11 @@ Eigen::Isometry3d TransformFusion::odom2affine(nav_msgs::msg::Odometry odom)
 
 void TransformFusion::lidar_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odomMsg)
 {
-  std::lock_guard<std::mutex> lock(mtx);
+//  std::lock_guard<std::mutex> lock(mtx);
 
   lidarOdomAffine = odom2affine(*odomMsg);
 
-  lidarOdomTime = utils->stamp2Sec(odomMsg->header.stamp);
+  lidarOdomTime = utils_->stamp2Sec(odomMsg->header.stamp);
 }
 
 void TransformFusion::imu_odometry_handler(
@@ -55,14 +55,14 @@ void TransformFusion::imu_odometry_handler(
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubImuOdometry,
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pubImuPath)
 {
-  std::lock_guard<std::mutex> lock(mtx);
+//  std::lock_guard<std::mutex> lock(mtx);
 
   imuOdomQueue.push_back(*odomMsg);
 
   // get latest odometry (at current IMU stamp)
   if (lidarOdomTime == -1) return;
   while (!imuOdomQueue.empty()) {
-    if (utils->stamp2Sec(imuOdomQueue.front().header.stamp) <= lidarOdomTime)
+    if (utils_->stamp2Sec(imuOdomQueue.front().header.stamp) <= lidarOdomTime)
       imuOdomQueue.pop_front();
     else
       break;
@@ -103,7 +103,7 @@ void TransformFusion::imu_odometry_handler(
   // publish IMU path
   static nav_msgs::msg::Path imuPath;
   static double last_path_time = -1;
-  double imuTime = utils->stamp2Sec(imuOdomQueue.back().header.stamp);
+  double imuTime = utils_->stamp2Sec(imuOdomQueue.back().header.stamp);
   if (imuTime - last_path_time > 0.1) {
     last_path_time = imuTime;
     geometry_msgs::msg::PoseStamped pose_stamped;
@@ -112,7 +112,7 @@ void TransformFusion::imu_odometry_handler(
     pose_stamped.pose = laserOdometry.pose.pose;
     imuPath.poses.push_back(pose_stamped);
     while (!imuPath.poses.empty() &&
-           utils->stamp2Sec(imuPath.poses.front().header.stamp) < lidarOdomTime - 1.0)
+           utils_->stamp2Sec(imuPath.poses.front().header.stamp) < lidarOdomTime - 1.0)
       imuPath.poses.erase(imuPath.poses.begin());
     if (pubImuPath->get_subscription_count() != 0) {
       imuPath.header.stamp = imuOdomQueue.back().header.stamp;
@@ -122,12 +122,12 @@ void TransformFusion::imu_odometry_handler(
   }
 }
 
-ImuPreintegration::ImuPreintegration(
+ImuPreintegration::ImuPreintegration(  const Utils::SharedPtr & utils,
   std::string base_link_frame, std::string lidar_frame, std::string odometry_frame,
   float lidar_imu_x, float lidar_imu_y, float lidar_imu_z, float imu_gravity, float imu_acc_noise,
   float imu_acc_bias, float imu_gyro_noise, float imu_gyro_bias)
 {
-  utils = std::make_shared<Utils>();
+  utils_ = utils;
 
   base_link_frame_ = base_link_frame;
   odometry_frame_ = odometry_frame;
@@ -194,9 +194,9 @@ void ImuPreintegration::reset_params()
 
 void ImuPreintegration::odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odomMsg, rclcpp::Logger logger_)
 {
-  std::lock_guard<std::mutex> lock(mtx);
+//  std::lock_guard<std::mutex> lock(mtx);
 
-  double currentCorrectionTime = utils->stamp2Sec(odomMsg->header.stamp);
+  double currentCorrectionTime = utils_->stamp2Sec(odomMsg->header.stamp);
 
   // make sure we have imu data to integrate
   if (imuQueOpt.empty()) return;
@@ -218,8 +218,8 @@ void ImuPreintegration::odometry_handler(const nav_msgs::msg::Odometry::SharedPt
 
     // pop old IMU message
     while (!imuQueOpt.empty()) {
-      if (utils->stamp2Sec(imuQueOpt.front().header.stamp) < currentCorrectionTime - delta_t) {
-        lastImuT_opt = utils->stamp2Sec(imuQueOpt.front().header.stamp);
+      if (utils_->stamp2Sec(imuQueOpt.front().header.stamp) < currentCorrectionTime - delta_t) {
+        lastImuT_opt = utils_->stamp2Sec(imuQueOpt.front().header.stamp);
         imuQueOpt.pop_front();
       } else
         break;
@@ -289,7 +289,7 @@ void ImuPreintegration::odometry_handler(const nav_msgs::msg::Odometry::SharedPt
   while (!imuQueOpt.empty()) {
     // pop and integrate imu data that is between two optimizations
     sensor_msgs::msg::Imu * thisImu = &imuQueOpt.front();
-    double imuTime = utils->stamp2Sec(thisImu->header.stamp);
+    double imuTime = utils_->stamp2Sec(thisImu->header.stamp);
     if (imuTime < currentCorrectionTime - delta_t) {
       double dt = (lastImuT_opt < 0) ? (1.0 / 500.0) : (imuTime - lastImuT_opt);
       imuIntegratorOpt_->integrateMeasurement(
@@ -350,8 +350,8 @@ void ImuPreintegration::odometry_handler(const nav_msgs::msg::Odometry::SharedPt
   // first pop imu message older than current correction data
   double lastImuQT = -1;
   while (!imuQueImu.empty() &&
-         utils->stamp2Sec(imuQueImu.front().header.stamp) < currentCorrectionTime - delta_t) {
-    lastImuQT = utils->stamp2Sec(imuQueImu.front().header.stamp);
+         utils_->stamp2Sec(imuQueImu.front().header.stamp) < currentCorrectionTime - delta_t) {
+    lastImuQT = utils_->stamp2Sec(imuQueImu.front().header.stamp);
     imuQueImu.pop_front();
   }
   // repropogate
@@ -361,7 +361,7 @@ void ImuPreintegration::odometry_handler(const nav_msgs::msg::Odometry::SharedPt
     // integrate imu message from the beginning of this optimization
     for (int i = 0; i < (int)imuQueImu.size(); ++i) {
       sensor_msgs::msg::Imu * thisImu = &imuQueImu[i];
-      double imuTime = utils->stamp2Sec(thisImu->header.stamp);
+      double imuTime = utils_->stamp2Sec(thisImu->header.stamp);
       double dt = (lastImuQT < 0) ? (1.0 / 500.0) : (imuTime - lastImuQT);
 
       imuIntegratorImu_->integrateMeasurement(
@@ -404,16 +404,16 @@ void ImuPreintegration::imu_handler(
   const sensor_msgs::msg::Imu::SharedPtr imu_raw,
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubImuOdometry)
 {
-  std::lock_guard<std::mutex> lock(mtx);
+//  std::lock_guard<std::mutex> lock(mtx);
 
-  sensor_msgs::msg::Imu thisImu = utils->imuConverter(*imu_raw);
+  sensor_msgs::msg::Imu thisImu = utils_->imuConverter(*imu_raw);
 
   imuQueOpt.push_back(thisImu);
   imuQueImu.push_back(thisImu);
 
   if (doneFirstOpt == false) return;
 
-  double imuTime = utils->stamp2Sec(thisImu.header.stamp);
+  double imuTime = utils_->stamp2Sec(thisImu.header.stamp);
   double dt = (lastImuT_imu < 0) ? (1.0 / 500.0) : (imuTime - lastImuT_imu);
   lastImuT_imu = imuTime;
 

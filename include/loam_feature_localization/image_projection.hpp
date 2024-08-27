@@ -65,12 +65,14 @@ public:
   using SharedPtr = std::shared_ptr<ImageProjection>;
   using ConstSharedPtr = const std::shared_ptr<ImageProjection>;
 
-  explicit ImageProjection(
+  explicit ImageProjection( const Utils::SharedPtr & utils,
     int N_SCAN, int Horizon_SCAN,
     double lidar_max_range, double lidar_min_range,
     std::string lidar_frame);
 
   Utils::CloudInfo cloud_info;
+  sensor_msgs::msg::Image range_mat_for_vis_;
+  pcl::PointCloud<PointType>::Ptr extracted_cloud_to_pub_;
 
   void cloud_handler(
     const sensor_msgs::msg::PointCloud2::SharedPtr laserCloudMsg, rclcpp::Logger logger_,
@@ -110,9 +112,10 @@ private:
   pcl::PointCloud<PointType>::Ptr full_cloud_;
   pcl::PointCloud<PointType>::Ptr extracted_cloud_;
 
+  cv::Mat range_mat_;
+
   int ring_flag_ = 0;
   int deskew_flag_;
-  cv::Mat range_mat_;
 
   bool odom_deskew_flag_;
   float odom_incre_x_;
@@ -140,6 +143,7 @@ private:
   void publish_clouds(
     const rclcpp::Time & now,
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_deskewed);
+  sensor_msgs::msg::Image prepare_visualization_image(const cv::Mat & rangeMat);
 
 };
 } // namespace loam_feature_localization

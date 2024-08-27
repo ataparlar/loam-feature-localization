@@ -65,7 +65,7 @@ public:
   using SharedPtr = std::shared_ptr<TransformFusion>;
   using ConstSharedPtr = const std::shared_ptr<TransformFusion>;
 
-  explicit TransformFusion(
+  explicit TransformFusion( const Utils::SharedPtr & utils,
     std::string base_link_frame, std::string lidar_frame, std::string odometry_frame);
 
   void lidar_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
@@ -75,7 +75,7 @@ public:
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pubImuPath);
 
 private:
-  Utils::SharedPtr utils;
+  Utils::SharedPtr utils_;
 
   //  rclcpp::Logger logger;
 
@@ -106,7 +106,7 @@ public:
   using SharedPtr = std::shared_ptr<ImuPreintegration>;
   using ConstSharedPtr = const std::shared_ptr<ImuPreintegration>;
 
-  explicit ImuPreintegration(
+  explicit ImuPreintegration( const Utils::SharedPtr & utils,
     std::string base_link_frame, std::string lidar_frame, std::string odometry_frame,
     float lidar_imu_x, float lidar_imu_y, float lidar_imu_z, float imu_gravity, float imu_acc_noise,
     float imu_acc_bias, float imu_gyro_noise, float imu_gyro_bias);
@@ -117,7 +117,7 @@ public:
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubImuOdometry);
 
 private:
-  Utils::SharedPtr utils;
+  Utils::SharedPtr utils_;
 
   std::mutex mtx;
 

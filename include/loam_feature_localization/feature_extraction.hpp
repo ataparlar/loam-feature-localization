@@ -63,12 +63,13 @@ public:
   using SharedPtr = std::shared_ptr<FeatureExtraction>;
   using ConstSharedPtr = const std::shared_ptr<FeatureExtraction>;
 
-  explicit FeatureExtraction(
+  explicit FeatureExtraction( const Utils::SharedPtr & utils,
     int N_SCAN, int Horizon_SCAN, double odometry_surface_leaf_size, double edge_threshold,
     double surface_threshold, std::string lidar_frame);
 
   void laser_cloud_info_handler(
-    const Utils::CloudInfo & msg_in, const std_msgs::msg::Header & cloud_header);
+    const Utils::CloudInfo & msg_in, const std_msgs::msg::Header & cloud_header,
+    const pcl::PointCloud<PointType>::Ptr & extracted_cloud);
   void publish_feature_cloud(
     const rclcpp::Time & now,
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCornerCloud,

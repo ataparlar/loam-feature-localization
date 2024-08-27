@@ -2,24 +2,41 @@
   ros__parameters:
     imu_topic: /applanix/lvx_client/imu_raw
     odom_topic: /applanix/lvx_client/odom
-    point_cloud_topic: /hesai/pandar
+    point_cloud_topic: /pandar_points
     output_odometry_frame: base_link
 
     corner_map_path: /home/ataparlar/data/task_specific/loam_feature_localization/bomonti_tunnel/bomonti_corner.pcd
     surface_map_path: /home/ataparlar/data/task_specific/loam_feature_localization/bomonti_tunnel/bomonti_surface_ss.pcd
 
-    lidar_imu_x: 0.0
-    lidar_imu_y: 0.0
-    lidar_imu_z: 0.08
-    lidar_imu_roll: 0.418
-    lidar_imu_pitch: -0.411
-    lidar_imu_yaw: -179.533
+#    lidar_imu_x: 0.0
+#    lidar_imu_y: 0.0
+#    lidar_imu_z: 0.08
+#    lidar_imu_roll: 0.418
+#    lidar_imu_pitch: -0.411
+#    lidar_imu_yaw: -179.533
+
+    extrinsic_rot: [ -0.9997427,  0.0214654,  0.0073284,
+                    -0.0215177, -0.9997430, -0.0071394,
+                    0.0071732, -0.0072952,  0.9999477 ]
+    extrinsic_rpy: [ -0.9997427,  0.0214654,  0.0073284,
+                    -0.0215177, -0.9997430, -0.0071394,
+                    0.0071732, -0.0072952,  0.9999477 ]
+    extrinsic_trans: [ 0.0,  0.0,  0.08 ]
+
+
+
     lidar_min_range: 2.0
     lidar_max_range: 120.0
     N_SCAN: 32
     Horizon_SCAN: 2000
     edge_threshold: 1.0
     surface_threshold: 0.1
+
+    imu_gravity:    0.0
+    imu_acc_noise:  3.9939570888238808e-03
+    imu_acc_bias:   6.4356659353532566e-05
+    imu_gyro_noise: 1.5636343949698187e-03
+    imu_gyro_bias:  3.5640318696367613e-05
 
     #    Feature Matching
     odometry_surface_leaf_size: 0.4

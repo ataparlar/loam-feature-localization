@@ -77,18 +77,34 @@ private:
   std::string output_odometry_frame_;
   std::string corner_map_path_;
   std::string surface_map_path_;
-  double lidar_imu_x_;
-  double lidar_imu_y_;
-  double lidar_imu_z_;
-  double lidar_imu_roll_;
-  double lidar_imu_pitch_;
-  double lidar_imu_yaw_;
+
+//  double lidar_imu_x_;
+//  double lidar_imu_y_;
+//  double lidar_imu_z_;
+//  double lidar_imu_roll_;
+//  double lidar_imu_pitch_;
+//  double lidar_imu_yaw_;
+
+  std::vector<double> ext_rot_v_;
+  std::vector<double> ext_rpy_v_;
+  std::vector<double> ext_trans_v_;
+  Eigen::Matrix3d ext_rot_;
+  Eigen::Matrix3d ext_rpy_;
+  Eigen::Vector3d ext_trans_;
+  Eigen::Quaterniond ext_qrpy_;
+
   double lidar_min_range_;
   double lidar_max_range_;
   int N_SCAN_;
   int Horizon_SCAN_;
   double edge_threshold_;
   double surface_threshold_;
+
+  double imu_gravity_ ;
+  double imu_acc_noise_ ;
+  double imu_acc_bias_ ;
+  double imu_gyro_noise_ ;
+  double imu_gyro_bias_ ;
 
   double odometry_surface_leaf_size_;
   double mapping_corner_leaf_size_;
@@ -142,7 +158,6 @@ private:
   void imu_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
   void laser_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
   void cloud_handler(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
-
 
   // Feature Extraction
 

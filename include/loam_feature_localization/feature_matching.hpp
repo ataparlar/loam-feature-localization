@@ -46,9 +46,9 @@
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/PriorFactor.h>
-//#include <pcl/filters/voxel_grid.h>
-//#include <pcl/kdtree/kdtree_flann.h>
-//#include <pcl/point_cloud.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/point_cloud.h>
 #include <tf2_ros/transform_broadcaster.h>
 
 #include <deque>
@@ -65,7 +65,127 @@ public:
 
   explicit FeatureMatching();
 
+
 private:
+
+
+  // gtsam
+  gtsam::NonlinearFactorGraph gtsam_graph_;
+  gtsam::Values initial_estimate_;
+  gtsam::Values optimized_estimate_;
+  gtsam::ISAM2 *isam_;
+  gtsam::Values isam_current_estimate_;
+  Eigen::MatrixXd pose_covariance_;
+
+  std::deque<nav_msgs::msg::Odometry> gps_queue;
+  Utils::CloudInfo cloud_info_;
+
+  std::vector<pcl::PointCloud<PointType>::Ptr> corner_cloud_key_frames;
+  std::vector<pcl::PointCloud<PointType>::Ptr> surface_cloud_key_frames;
+
+  pcl::PointCloud<PointType>::Ptr cloud_key_poses_3d_;
+  pcl::PointCloud<PointTypePose>::Ptr cloud_key_poses_6d_;
+  pcl::PointCloud<PointType>::Ptr copy_cloud_key_poses_3d_;
+  pcl::PointCloud<PointTypePose>::Ptr copy_cloud_key_poses_6d_;
+
+  pcl::PointCloud<PointType>::Ptr laser_cloud_corner_last_; // corner feature set from odoOptimization
+  pcl::PointCloud<PointType>::Ptr laser_cloud_surface_last_; // surf feature set from odoOptimization
+  pcl::PointCloud<PointType>::Ptr laser_cloud_corner_last_ds_; // downsampled corner feature set from odoOptimization
+  pcl::PointCloud<PointType>::Ptr laser_cloud_surface_last_ds_; // downsampled surf feature set from odoOptimization
+
+  pcl::PointCloud<PointType>::Ptr laser_cloud_ori_;
+  pcl::PointCloud<PointType>::Ptr coeff_sel_;
+
+  std::vector<PointType> laser_cloud_ori_corner_vec_; // corner point holder for parallel computation
+  std::vector<PointType> coeff_sel_corner_vec_;
+  std::vector<bool> laser_cloud_ori_corner_flag_;
+  std::vector<PointType> laser_cloud_ori_surface_vec_; // surf point holder for parallel computation
+  std::vector<PointType> coeff_sel_surface_vec_;
+  std::vector<bool> laser_cloud_ori_sorface_flag_;
+
+  std::map<int, std::pair<pcl::PointCloud<PointType>, pcl::PointCloud<PointType>>> laser_cloud_map_container_;
+  pcl::PointCloud<PointType>::Ptr laser_cloud_corner_from_map_;
+  pcl::PointCloud<PointType>::Ptr laser_cloud_surface_from_map_;
+  pcl::PointCloud<PointType>::Ptr laser_cloud_corner_from_map_ds_;
+  pcl::PointCloud<PointType>::Ptr laser_cloud_surface_from_map_ds_;
+  pcl::PointCloud<PointType>::Ptr map_corner_;
+  pcl::PointCloud<PointType>::Ptr map_surface_;
+
+  pcl::KdTreeFLANN<PointType>::Ptr kdtree_corner_from_map_;
+  pcl::KdTreeFLANN<PointType>::Ptr kdtree_surface_from_map_;
+
+  pcl::KdTreeFLANN<PointType>::Ptr kdtree_surrounding_key_poses_;
+  pcl::KdTreeFLANN<PointType>::Ptr kdtree_history_key_poses_;
+
+  pcl::VoxelGrid<PointType> down_size_filter_corner_;
+  pcl::VoxelGrid<PointType> down_size_filter_surface_;
+  pcl::VoxelGrid<PointType> down_size_filter_icp_;
+  pcl::VoxelGrid<PointType> down_size_filter_surrounding_key_poses_; // for surrounding key poses of scan-to-map optimization
+
+  rclcpp::Time time_laser_info_stamp_;
+  double time_laser_info_cur_;
+
+  float transform_to_be_mapped[6];
+
+  std::mutex mtx_;
+  std::mutex mtx_loop_info_;
+
+  bool is_degenerate_ = false;
+  Eigen::Matrix<float, 6, 6> mat_p_;
+
+  int laser_cloud_corner_from_map_ds_num_ = 0;
+  int laser_cloud_surface_from_map_ds_num_ = 0;
+  int laser_cloud_corner_last_ds_num_ = 0;
+  int laser_cloud_surface_last_ds_num_ = 0;
+
+  bool a_loop_is_closed_ = false;
+  std::map<int, int> loop_index_container_; // from new to old
+  std::vector<std::pair<int, int>> loop_index_queue_;
+  std::vector<gtsam::Pose3> loop_pose_queue;
+  std::vector<gtsam::noiseModel::Diagonal::shared_ptr> loop_noise_queue_;
+  std::deque<std_msgs::msg::Float64MultiArray> loop_info_vec_;
+
+  nav_msgs::msg::Path global_path_;
+
+  Eigen::Affine3f trans_point_associate_to_map_;
+  Eigen::Affine3f incremental_odometry_affine_front_;
+  Eigen::Affine3f incremental_odometry_affine_back_;
+
+
+  void allocate_memory();
+  void laser_cloud_info_handler(const Utils::CloudInfo msg_in);
+  void point_associate_to_map(PointType const * const pi, PointType * const po);
+  pcl::PointCloud<PointType>::Ptr transform_point_cloud(pcl::PointCloud<PointType>::Ptr cloud_in, PointTypePose* transform_in);
+  gtsam::Pose3 pcl_point_to_gtsam_pose3(PointTypePose this_point);
+  gtsam::Pose3 trans_to_gtsam_pose(float transform_in[]);
+  Eigen::Affine3f pcl_point_to_affine3f(PointTypePose this_point);
+  Eigen::Affine3f trans_to_affine3f(float transform_in[]);
+  PointTypePose trans_to_point_type_pose(float transform_in[]);
+  void update_initial_guess();
+  void extract_nearby();
+  void extract_cloud();
+  void extract_surrounding_key_frames();
+  void downsample_current_scan();
+  void update_point_associate_to_map();
+  void corner_optimization();
+  void surf_optimization();
+  void combine_optimization_coeffs();
+  bool lm_optimization(int iter_count);
+  void scan_to_map_optimization();
+  void transform_update();
+  float constraint_transformation(float value, float limit);
+  bool save_frame();
+  void add_odom_factor();
+  void add_gps_factor();
+  void add_loop_factor();
+  void save_key_frames_and_factor();
+  void correct_poses();
+  void update_path(const PointTypePose& pose_in);
+  void publish_odometry();
+  void publish_frames();
+
+
+
 
 };
 

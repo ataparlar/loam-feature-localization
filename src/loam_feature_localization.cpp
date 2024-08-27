@@ -32,18 +32,36 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
   this->declare_parameter("output_odometry_frame", "");
   this->declare_parameter("corner_map_path", "");
   this->declare_parameter("surface_map_path", "");
-  this->declare_parameter("lidar_imu_x", 0.0);
-  this->declare_parameter("lidar_imu_y", 0.0);
-  this->declare_parameter("lidar_imu_z", 0.0);
-  this->declare_parameter("lidar_imu_roll", 0.0);
-  this->declare_parameter("lidar_imu_pitch", 0.0);
-  this->declare_parameter("lidar_imu_yaw", 0.0);
+
+//  this->declare_parameter("lidar_imu_x", 0.0);
+//  this->declare_parameter("lidar_imu_y", 0.0);
+//  this->declare_parameter("lidar_imu_z", 0.0);
+//  this->declare_parameter("lidar_imu_roll", 0.0);
+//  this->declare_parameter("lidar_imu_pitch", 0.0);
+//  this->declare_parameter("lidar_imu_yaw", 0.0);
+
+  double ida[] = { 1.0,  0.0,  0.0,
+                  0.0,  1.0,  0.0,
+                  0.0,  0.0,  1.0};
+  std::vector < double > id(ida, std::end(ida));
+  double zea[] = {0.0, 0.0, 0.0};
+  std::vector < double > ze(zea, std::end(zea));
+  declare_parameter("extrinsic_rot", id);
+  declare_parameter("extrinsic_rpy", id);
+  declare_parameter("extrinsic_trans", ze);
+
   this->declare_parameter("lidar_min_range", 1.0);
   this->declare_parameter("lidar_max_range", 120.0);
   this->declare_parameter("N_SCAN", 32);
   this->declare_parameter("Horizon_SCAN", 2000);
   this->declare_parameter("edge_threshold", 120.0);
   this->declare_parameter("surface_threshold", 120.0);
+
+  this->declare_parameter("imu_gravity", 0.0);
+  this->declare_parameter("imu_acc_noise", 3.9939570888238808e-03);
+  this->declare_parameter("imu_acc_bias", 6.4356659353532566e-05);
+  this->declare_parameter("imu_gyro_noise", 1.5636343949698187e-03);
+  this->declare_parameter("imu_gyro_bias", 3.5640318696367613e-05);
 
   this->declare_parameter("odometry_surface_leaf_size", 0.4);
   this->declare_parameter("mapping_corner_leaf_size", 0.2);
@@ -65,18 +83,31 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
   output_odometry_frame_ = this->get_parameter("point_cloud_topic").as_string();
   corner_map_path_ = this->get_parameter("corner_map_path").as_string();
   surface_map_path_ = this->get_parameter("surface_map_path").as_string();
-  lidar_imu_x_ = this->get_parameter("lidar_imu_x").as_double();
-  lidar_imu_y_ = this->get_parameter("lidar_imu_y").as_double();
-  lidar_imu_z_ = this->get_parameter("lidar_imu_z").as_double();
-  lidar_imu_roll_ = this->get_parameter("lidar_imu_roll").as_double();
-  lidar_imu_pitch_ = this->get_parameter("lidar_imu_pitch").as_double();
-  lidar_imu_yaw_ = this->get_parameter("lidar_imu_yaw").as_double();
+
+//  lidar_imu_x_ = this->get_parameter("lidar_imu_x").as_double();
+//  lidar_imu_y_ = this->get_parameter("lidar_imu_y").as_double();
+//  lidar_imu_z_ = this->get_parameter("lidar_imu_z").as_double();
+//  lidar_imu_roll_ = this->get_parameter("lidar_imu_roll").as_double();
+//  lidar_imu_pitch_ = this->get_parameter("lidar_imu_pitch").as_double();
+//  lidar_imu_yaw_ = this->get_parameter("lidar_imu_yaw").as_double();
+
+  get_parameter("extrinsic_rot", ext_rot_v_);
+  get_parameter("extrinsic_rpy", ext_rpy_v_);
+  get_parameter("extrinsic_trans", ext_trans_v_);
+
+
   lidar_min_range_ = this->get_parameter("lidar_min_range").as_double();
   lidar_max_range_ = this->get_parameter("lidar_max_range").as_double();
   N_SCAN_ = this->get_parameter("N_SCAN").as_int();
   Horizon_SCAN_ = this->get_parameter("Horizon_SCAN").as_int();
   edge_threshold_ = this->get_parameter("edge_threshold").as_double();
   surface_threshold_ = this->get_parameter("surface_threshold").as_double();
+
+  imu_gravity_ = this->get_parameter("imu_gravity").as_double();
+  imu_acc_noise_ = this->get_parameter("imu_acc_noise").as_double();
+  imu_acc_bias_ = this->get_parameter("imu_acc_bias").as_double();
+  imu_gyro_noise_ = this->get_parameter("imu_gyro_noise").as_double();
+  imu_gyro_bias_ = this->get_parameter("imu_gyro_bias").as_double();
 
   odometry_surface_leaf_size_ = this->get_parameter("odometry_surface_leaf_size").as_double();
   mapping_corner_leaf_size_ = this->get_parameter("mapping_corner_leaf_size").as_double();
@@ -119,6 +150,8 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
     point_cloud_topic_, rclcpp::SensorDataQoS(),
     std::bind(&LoamFeatureLocalization::cloud_handler, this, std::placeholders::_1), lidar_opt);
 
+  std::cout << "point_cloud_topic_: " << point_cloud_topic_ << std::endl;
+
   pub_range_matrix =
     create_publisher<sensor_msgs::msg::Image>("/range_image", rclcpp::SensorDataQoS());
   pub_map_corner =
@@ -138,28 +171,34 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
   pub_odom_laser =
     create_publisher<nav_msgs::msg::Odometry>("/laser_odom", rclcpp::SensorDataQoS());
   pub_path_imu =
-    create_publisher<nav_msgs::msg::Path>("/imu_odom", rclcpp::SensorDataQoS());
+    create_publisher<nav_msgs::msg::Path>("/imu_path", rclcpp::SensorDataQoS());
   pub_path_laser =
-    create_publisher<nav_msgs::msg::Path>("/laser_odom", rclcpp::SensorDataQoS());
+    create_publisher<nav_msgs::msg::Path>("/laser_path", rclcpp::SensorDataQoS());
 
-  float imu_gravity = 0.0;
-  float imu_acc_noise = 0.0;
-  float imu_acc_bias = 0.0;
-  float imu_gyro_noise = 0.0;
-  float imu_gyro_bias = 0.0;
+//  float imu_gravity = 0.0;
+//  float imu_acc_noise = 0.0;
+//  float imu_acc_bias = 0.0;
+//  float imu_gyro_noise = 0.0;
+//  float imu_gyro_bias = 0.0;
+
+  ext_rot_ = Eigen::Map<const Eigen::Matrix<double, -1, -1, Eigen::RowMajor>>(ext_rot_v_.data(), 3, 3);
+  ext_rpy_ = Eigen::Map<const Eigen::Matrix<double, -1, -1, Eigen::RowMajor>>(ext_rpy_v_.data(), 3, 3);
+  ext_trans_ = Eigen::Map<const Eigen::Matrix<double, -1, -1, Eigen::RowMajor>>(ext_trans_v_.data(), 3, 1);
+  ext_qrpy_ = Eigen::Quaterniond(ext_rpy_);
 
   // Objects
-  utils_ = std::make_shared<Utils>();
-  imu_preintegration_ = std::make_shared<ImuPreintegration>(
+  utils_ = std::make_shared<Utils>(ext_rot_, ext_rpy_, ext_trans_);
+  imu_preintegration_ = std::make_shared<ImuPreintegration>( utils_,
     "base_link", "lidar_link", "odom_link",
-    lidar_imu_x_, lidar_imu_y_, lidar_imu_z_,
-    imu_gravity,
-    imu_acc_noise, imu_acc_bias, imu_gyro_noise, imu_gyro_bias);
-  transform_fusion_ = std::make_shared<TransformFusion>("base_link", "lidar_link", "odom_link");
-  image_projection_ = std::make_shared<ImageProjection>(
+    ext_trans_[0], ext_trans_[1], ext_trans_[2],
+    imu_gravity_,
+    imu_acc_noise_, imu_acc_bias_, imu_gyro_noise_, imu_gyro_bias_);
+  transform_fusion_ = std::make_shared<TransformFusion>( utils_,
+    "base_link", "lidar_link", "odom_link");
+  image_projection_ = std::make_shared<ImageProjection>( utils_,
     N_SCAN_, Horizon_SCAN_,
     120.0, 0.0, "lidar_link");
-  feature_extraction_ = std::make_shared<FeatureExtraction>(
+  feature_extraction_ = std::make_shared<FeatureExtraction>(utils_,
     N_SCAN_, Horizon_SCAN_,
     odometry_surface_leaf_size_,
     edge_threshold_, surface_threshold_,
@@ -178,18 +217,26 @@ void LoamFeatureLocalization::imu_odometry_handler(const nav_msgs::msg::Odometry
   transform_fusion_->imu_odometry_handler(odom_msg, this->get_logger(), pub_odom_imu, pub_path_imu);
 }
 
+
+
 void LoamFeatureLocalization::cloud_handler(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg)
 {
   image_projection_->cloud_handler(
     laser_cloud_msg, this->get_logger(), this->get_clock()->now(), pub_cloud_deskewed);
+
+//  auto image = prepare_visualization_image(image_projection_->range_mat_);
+  pub_range_matrix->publish(image_projection_->range_mat_for_vis_);
+
   feature_extraction_->laser_cloud_info_handler(
-    image_projection_->cloud_info, laser_cloud_msg->header);
+    image_projection_->cloud_info, laser_cloud_msg->header, image_projection_->extracted_cloud_to_pub_);
   feature_extraction_->publish_feature_cloud(this->get_clock()->now(), pub_cloud_corner, pub_cloud_surface);
 }
 void LoamFeatureLocalization::laser_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg)
 {
 
 }
+
+
 
 }  // namespace loam_feature_localization
 

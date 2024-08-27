@@ -19,13 +19,14 @@
 #include "tf2/LinearMath/Quaternion.h"
 
 #include <pcl/common/impl/eigen.hpp>
+#include <pcl/filters/filter.h>
 
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 namespace loam_feature_localization
 {
 
-ImageProjection::ImageProjection(
+ImageProjection::ImageProjection(  const Utils::SharedPtr & utils,
   int N_SCAN, int Horizon_SCAN, double lidar_max_range, double lidar_min_range,
   std::string lidar_frame)
 {
@@ -35,7 +36,8 @@ ImageProjection::ImageProjection(
   lidar_min_range_ = lidar_min_range;
   lidar_frame_ = lidar_frame;
 
-  utils_ = std::make_shared<Utils>();
+//  utils_ = std::make_shared<Utils>();
+  utils_ = utils;
 
   allocate_memory();
   reset_parameters();
@@ -49,6 +51,7 @@ void ImageProjection::allocate_memory()
   //    tmpOusterCloudIn.reset(new pcl::PointCloud<OusterPointXYZIRT>());
   full_cloud_.reset(new pcl::PointCloud<PointType>());
   extracted_cloud_.reset(new pcl::PointCloud<PointType>());
+  extracted_cloud_to_pub_.reset(new pcl::PointCloud<PointType>());
 
   full_cloud_->points.resize(n_scan_ * horizon_scan_);
 
@@ -84,13 +87,13 @@ void ImageProjection::imu_handler(const sensor_msgs::msg::Imu::SharedPtr imuMsg)
 {
   sensor_msgs::msg::Imu this_imu = utils_->imuConverter(*imuMsg);
 
-  std::lock_guard<std::mutex> lock1(imu_lock_);
+//  std::lock_guard<std::mutex> lock1(imu_lock_);
   imu_queue_.push_back(this_imu);
 }
 
 void ImageProjection::odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odometryMsg)
 {
-  std::lock_guard<std::mutex> lock2(odom_lock_);
+//  std::lock_guard<std::mutex> lock2(odom_lock_);
   odom_queue_.push_back(*odometryMsg);
 }
 
@@ -107,6 +110,10 @@ void ImageProjection::cloud_handler(
   cloud_extraction();
 
   publish_clouds(now, pub_cloud_deskewed);
+
+  range_mat_for_vis_ = prepare_visualization_image(range_mat_);
+
+  extracted_cloud_to_pub_ = extracted_cloud_;
 
   reset_parameters();
 }
@@ -151,14 +158,16 @@ bool ImageProjection::cache_point_cloud(
   //    rclcpp::shutdown();
   //  }
 
+  pcl::moveFromROSMsg(current_cloud_msg_, *laser_cloud_in_);
+
   // get timestamp
   cloud_header_ = current_cloud_msg_.header;
   time_scan_cur_ = utils_->stamp2Sec(cloud_header_.stamp);
   time_scan_end_ = time_scan_cur_ + laser_cloud_in_->points.back().time;
 
   // remove Nan
-  std::vector<int> indices;
-  pcl::removeNaNFromPointCloud(*laser_cloud_in_, *laser_cloud_in_, indices);
+//  std::vector<int> indices;
+//  pcl::removeNaNFromPointCloud(*laser_cloud_in_, *laser_cloud_in_, indices);
 
   // check dense flag
   if (laser_cloud_in_->is_dense == false) {
@@ -210,8 +219,8 @@ bool ImageProjection::cache_point_cloud(
 
 bool ImageProjection::deskew_info(rclcpp::Logger logger_)
 {
-  std::lock_guard<std::mutex> lock1(imu_lock_);
-  std::lock_guard<std::mutex> lock2(odom_lock_);
+//  std::lock_guard<std::mutex> lock1(imu_lock_);
+//  std::lock_guard<std::mutex> lock2(odom_lock_);
 
   // make sure IMU data available for the scan
   if (
@@ -534,6 +543,45 @@ void ImageProjection::publish_clouds(
   cloud_deskewed.header.stamp = now;
   cloud_deskewed.header.frame_id = lidar_frame_;
   pub_cloud_deskewed->publish(cloud_deskewed);
+}
+
+sensor_msgs::msg::Image ImageProjection::prepare_visualization_image(const cv::Mat & rangeMat) {
+  cv::Mat normalized_image(rangeMat.rows, rangeMat.cols, CV_8UC1, 0.0);
+  for (int col = 0; col < rangeMat.cols; ++col) {
+    for (int row = 0; row < rangeMat.rows; ++row) {
+      normalized_image.at<uchar>(row, col) =
+        static_cast<uchar>((rangeMat.at<float>(row, col) * 180.0) / 60);
+    }
+  }
+
+  cv::Mat hsv_image(normalized_image.size(), CV_8UC3, cv::Vec3b(0.0, 255.0, 255.0));
+  for (int col = 0; col < normalized_image.cols; ++col) {
+    for (int row = 0; row < normalized_image.rows; ++row) {
+      uchar hue = normalized_image.at<uchar>(row, col);
+      if (hue == 0) {
+        hsv_image.at<cv::Vec3b>(row, col) = cv::Vec3b(hue, 0, 0);  // Full saturation and value
+      } else {
+        hsv_image.at<cv::Vec3b>(row, col) = cv::Vec3b(hue, 255, 255);  // Full saturation and value
+      }
+    }
+  }
+
+  cv::Mat BGR;
+  cv::cvtColor(hsv_image, BGR, cv::COLOR_HSV2BGR);
+
+  cv::Mat bgr_resized;
+  cv::resize(BGR, bgr_resized, cv::Size(), 1.0, 20.0);
+
+  cv_bridge::CvImage cv_image;
+  cv_image.header.frame_id = "map";
+//  cv_image.header.stamp = this->get_clock()->now();
+  cv_image.encoding = "bgr8";
+  cv_image.image = bgr_resized;
+
+  sensor_msgs::msg::Image image;
+  cv_image.toImageMsg(image);
+
+  return image;
 }
 
 }  // namespace loam_feature_localization

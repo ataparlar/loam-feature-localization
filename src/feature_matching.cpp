@@ -19,5 +19,10 @@ namespace loam_feature_localization
 FeatureMatching::FeatureMatching()
 {
 
+  gtsam::ISAM2Params parameters;
+  parameters.relinearizeThreshold = 0.1;
+  parameters.relinearizeSkip = 1;
+  isam_ = new gtsam::ISAM2(parameters);
+
 };
 } // namespace loam_feature_localization

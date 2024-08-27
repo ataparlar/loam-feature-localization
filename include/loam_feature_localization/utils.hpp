@@ -102,7 +102,9 @@ public:
 //  explicit Utils(
 //    double lidar_imu_roll_, double lidar_imu_pitch_, double lidar_imu_yaw_, double lidar_imu_x_,
 //    double lidar_imu_y_, double lidar_imu_z_);
-  explicit Utils();
+  explicit Utils(Eigen::Matrix3d ext_rot,
+                 Eigen::Matrix3d ext_rpy,
+                 Eigen::Vector3d ext_trans);
 
   std::string byte_hex_to_string(uint8_t byte_hex);
   std::string bytes_hexes_to_string(const std::vector<uint8_t> & bytes_hexes);
@@ -111,10 +113,10 @@ public:
   //  input, char splitter); static Eigen::Matrix3d
   //  ned2enu_converter_for_matrices(const Eigen::Matrix3d & matrix3d);
 
-  Eigen::Matrix3d extRot;
-  Eigen::Quaterniond extQRPY;
-  Eigen::Matrix3d extRPY;
-  Eigen::Vector3d extTrans;
+  Eigen::Matrix3d ext_rot_;
+  Eigen::Matrix3d ext_rpy_;
+  Eigen::Vector3d ext_trans_;
+  Eigen::Quaterniond ext_qrpy_;
 
   template <typename T>
   T deg_to_rad(T deg)

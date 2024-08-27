@@ -19,6 +19,7 @@
 namespace loam_feature_localization
 {
 FeatureExtraction::FeatureExtraction(
+  const Utils::SharedPtr & utils,
   int N_SCAN, int Horizon_SCAN,
   double odometry_surface_leaf_size,
   double edge_threshold, double surface_threshold,
@@ -30,6 +31,7 @@ FeatureExtraction::FeatureExtraction(
   edge_threshold_ = edge_threshold;
   surface_threshold_ = surface_threshold;
   lidar_frame_ = lidar_frame;
+  utils_ = utils;
 
   initialization_value();
 }
@@ -52,11 +54,14 @@ void FeatureExtraction::initialization_value()
 }
 
 void FeatureExtraction::laser_cloud_info_handler(
-  const Utils::CloudInfo & msg_in, const std_msgs::msg::Header & cloud_header)
+  const Utils::CloudInfo & msg_in, const std_msgs::msg::Header & cloud_header,
+  const pcl::PointCloud<PointType>::Ptr & extracted_cloud)
 {
   cloud_info_ = msg_in; // new cloud info
   cloud_header_ = cloud_header; // new cloud header
 //  pcl::fromROSMsg(cloud_deskewed, *extracted_cloud_); // new cloud for extraction
+
+  extracted_cloud_ = extracted_cloud;
 
   calculate_smoothness();
 
@@ -64,12 +69,15 @@ void FeatureExtraction::laser_cloud_info_handler(
 
   extract_features();
 
+//  std::cout << "cloud_corner_: " << corner_cloud_->size() << std::endl;
+
 //  publish_feature_cloud();
 }
 
 void FeatureExtraction::calculate_smoothness()
 {
   int cloud_size = extracted_cloud_->points.size();
+  std::cout << "cloud_size:  " << cloud_size << std::endl;
   for (int i = 5; i < cloud_size - 5; i++)
   {
     float diffRange = cloud_info_.point_range[i-5] + cloud_info_.point_range[i-4]
@@ -144,8 +152,13 @@ void FeatureExtraction::extract_features()
       int sp = (cloud_info_.start_ring_index[i] * (6 - j) + cloud_info_.end_ring_index[i] * j) / 6;
       int ep = (cloud_info_.start_ring_index[i] * (5 - j) + cloud_info_.end_ring_index[i] * (j + 1)) / 6 - 1;
 
-      if (sp >= ep)
+//      if (sp >= ep)
+//        continue;
+      if (sp >= cloud_smoothness_.size() || ep > cloud_smoothness_.size() || sp > ep) {
+        std::cerr << "Invalid range: sp=" << sp << ", ep=" << ep << std::endl;
         continue;
+      }
+
 
       std::sort(cloud_smoothness_.begin()+sp, cloud_smoothness_.begin()+ep, ByValue());
 
