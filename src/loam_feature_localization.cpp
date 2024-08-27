@@ -221,8 +221,11 @@ void LoamFeatureLocalization::imu_odometry_handler(const nav_msgs::msg::Odometry
 
 void LoamFeatureLocalization::cloud_handler(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg)
 {
+  pcl::PointCloud<PointType>::Ptr input_for_extraction;
+  input_for_extraction.reset(new pcl::PointCloud<PointType>());
+
   image_projection_->cloud_handler(
-    laser_cloud_msg, this->get_logger(), this->get_clock()->now(), pub_cloud_deskewed);
+    laser_cloud_msg, this->get_logger(), this->get_clock()->now(), pub_cloud_deskewed, input_for_extraction);
 
 //  auto image = prepare_visualization_image(image_projection_->range_mat_);
   pub_range_matrix->publish(image_projection_->range_mat_for_vis_);

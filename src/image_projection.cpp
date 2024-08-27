@@ -99,7 +99,8 @@ void ImageProjection::odometry_handler(const nav_msgs::msg::Odometry::SharedPtr 
 
 void ImageProjection::cloud_handler(
   const sensor_msgs::msg::PointCloud2::SharedPtr laserCloudMsg, rclcpp::Logger logger_,
-  rclcpp::Time now, rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_deskewed)
+  rclcpp::Time now, rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_deskewed,
+  pcl::PointCloud<PointType>::Ptr & output_cloud)
 {
   if (!cache_point_cloud(laserCloudMsg, logger_)) return;
 
@@ -113,7 +114,9 @@ void ImageProjection::cloud_handler(
 
   range_mat_for_vis_ = prepare_visualization_image(range_mat_);
 
-  extracted_cloud_to_pub_ = extracted_cloud_;
+  pcl::copyPointCloud(*extracted_cloud_, *extracted_cloud_to_pub_);
+
+//  extracted_cloud_to_pub_ = extracted_cloud_;
 
   reset_parameters();
 }

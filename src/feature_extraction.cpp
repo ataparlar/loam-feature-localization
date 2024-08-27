@@ -69,15 +69,13 @@ void FeatureExtraction::laser_cloud_info_handler(
 
   extract_features();
 
-//  std::cout << "cloud_corner_: " << corner_cloud_->size() << std::endl;
-
 //  publish_feature_cloud();
 }
 
 void FeatureExtraction::calculate_smoothness()
 {
   int cloud_size = extracted_cloud_->points.size();
-  std::cout << "cloud_size:  " << cloud_size << std::endl;
+//  std::cout << "cloud_size:  " << cloud_size << std::endl;
   for (int i = 5; i < cloud_size - 5; i++)
   {
     float diffRange = cloud_info_.point_range[i-5] + cloud_info_.point_range[i-4]
