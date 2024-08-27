@@ -63,11 +63,30 @@ public:
   using SharedPtr = std::shared_ptr<FeatureMatching>;
   using ConstSharedPtr = const std::shared_ptr<FeatureMatching>;
 
-  explicit FeatureMatching();
+  explicit FeatureMatching(
+    int n_scan, int horizon_scan, std::string corner_map_path, std::string surface_map_path,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_corner,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_surface,
+    rclcpp::Time now, const Utils::SharedPtr & utils,
+    double surrounding_key_frame_search_radius,
+    int min_edge_feature_number, int min_surface_feature_number,
+    double rotation_tollerance, double z_tollerance, double imu_rpy_weight);
 
 
 private:
 
+  Utils::SharedPtr utils_;
+
+  int n_scan_;
+  int horizon_scan_;
+  std::string map_corner_path_;
+  std::string map_surface_path;
+  double surrounding_key_frame_search_radius_;
+  int min_edge_feature_number_;
+  int min_surface_feature_number_;
+  double rotation_tolerance_;
+  double z_tolerance_;
+  double imu_rpy_weight_;
 
   // gtsam
   gtsam::NonlinearFactorGraph gtsam_graph_;
@@ -101,7 +120,7 @@ private:
   std::vector<bool> laser_cloud_ori_corner_flag_;
   std::vector<PointType> laser_cloud_ori_surface_vec_; // surf point holder for parallel computation
   std::vector<PointType> coeff_sel_surface_vec_;
-  std::vector<bool> laser_cloud_ori_sorface_flag_;
+  std::vector<bool> laser_cloud_ori_surface_flag_;
 
   std::map<int, std::pair<pcl::PointCloud<PointType>, pcl::PointCloud<PointType>>> laser_cloud_map_container_;
   pcl::PointCloud<PointType>::Ptr laser_cloud_corner_from_map_;
@@ -152,8 +171,13 @@ private:
   Eigen::Affine3f incremental_odometry_affine_back_;
 
 
-  void allocate_memory();
-  void laser_cloud_info_handler(const Utils::CloudInfo msg_in);
+  void allocate_memory(
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_corner,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_surface,
+    rclcpp::Time now);
+  void laser_cloud_info_handler(
+    const Utils::CloudInfo msg_in, std_msgs::msg::Header header,
+    pcl::PointCloud<PointType>::Ptr cloud_corner, pcl::PointCloud<PointType>::Ptr cloud_surface);
   void point_associate_to_map(PointType const * const pi, PointType * const po);
   pcl::PointCloud<PointType>::Ptr transform_point_cloud(pcl::PointCloud<PointType>::Ptr cloud_in, PointTypePose* transform_in);
   gtsam::Pose3 pcl_point_to_gtsam_pose3(PointTypePose this_point);
@@ -168,7 +192,7 @@ private:
   void downsample_current_scan();
   void update_point_associate_to_map();
   void corner_optimization();
-  void surf_optimization();
+  void surface_optimization();
   void combine_optimization_coeffs();
   bool lm_optimization(int iter_count);
   void scan_to_map_optimization();
