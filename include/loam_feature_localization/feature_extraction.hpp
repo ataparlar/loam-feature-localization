@@ -67,6 +67,9 @@ public:
     int N_SCAN, int Horizon_SCAN, double odometry_surface_leaf_size, double edge_threshold,
     double surface_threshold, std::string lidar_frame);
 
+  pcl::PointCloud<PointType>::Ptr corner_cloud_;
+  pcl::PointCloud<PointType>::Ptr surface_cloud_;
+
   void laser_cloud_info_handler(
     const Utils::CloudInfo & msg_in, const std_msgs::msg::Header & cloud_header,
     const pcl::PointCloud<PointType>::Ptr & extracted_cloud);
@@ -105,8 +108,6 @@ private:
 
   pcl::PointCloud<PointType>::Ptr cloud_deskewed_;
   pcl::PointCloud<PointType>::Ptr extracted_cloud_;
-  pcl::PointCloud<PointType>::Ptr corner_cloud_;
-  pcl::PointCloud<PointType>::Ptr surface_cloud_;
 
   std_msgs::msg::Header cloud_header_;
 

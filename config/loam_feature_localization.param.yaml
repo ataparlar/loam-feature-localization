@@ -43,6 +43,7 @@
     mapping_corner_leaf_size: 0.2
     mapping_surf_leaf_size: 0.4
     surrounding_key_frame_size: 50.0
+
     edge_feature_min_valid_num: 10.0
     surf_feature_min_valid_num: 100.0
     imu_rpy_weight: 0.01

@@ -166,6 +166,12 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
     create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_corner", rclcpp::SensorDataQoS());
   pub_cloud_surface =
     create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_surface", rclcpp::SensorDataQoS());
+  pub_key_poses_ =
+    create_publisher<sensor_msgs::msg::PointCloud2>("/pub_key_poses", rclcpp::SensorDataQoS());
+  pub_recent_key_frames_ =
+    create_publisher<sensor_msgs::msg::PointCloud2>("/pub_recent_key_frames", rclcpp::SensorDataQoS());
+  pub_cloud_registered_ =
+    create_publisher<sensor_msgs::msg::PointCloud2>("/pub_cloud_registered", rclcpp::SensorDataQoS());
   pub_odom_imu =
     create_publisher<nav_msgs::msg::Odometry>("/imu_odom", rclcpp::SensorDataQoS());
   pub_odom_laser =
@@ -174,6 +180,8 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
     create_publisher<nav_msgs::msg::Path>("/imu_path", rclcpp::SensorDataQoS());
   pub_path_laser =
     create_publisher<nav_msgs::msg::Path>("/laser_path", rclcpp::SensorDataQoS());
+
+  laser_tf_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
 //  float imu_gravity = 0.0;
 //  float imu_acc_noise = 0.0;
@@ -203,6 +211,13 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
     odometry_surface_leaf_size_,
     edge_threshold_, surface_threshold_,
     "lidar_link");
+  feature_matching_ = std::make_shared<FeatureMatching>(
+    N_SCAN_, Horizon_SCAN_,
+    corner_map_path_, surface_map_path_, pub_map_corner, pub_map_surface,
+    this->get_clock()->now(),
+    utils_, surrounding_key_frame_search_radius_, surrounding_key_frame_adding_angle_threshold_,
+    surrounding_key_frame_adding_dist_threshold_, edge_feature_min_valid_num_, surf_feature_min_valid_num_,
+    rotation_tollerance_, z_tollerance_, imu_rpy_weight_);
 }
 
 void LoamFeatureLocalization::imu_handler(const sensor_msgs::msg::Imu::SharedPtr imu_msg)
@@ -233,6 +248,15 @@ void LoamFeatureLocalization::cloud_handler(const sensor_msgs::msg::PointCloud2:
   feature_extraction_->laser_cloud_info_handler(
     image_projection_->cloud_info, laser_cloud_msg->header, image_projection_->extracted_cloud_to_pub_);
   feature_extraction_->publish_feature_cloud(this->get_clock()->now(), pub_cloud_corner, pub_cloud_surface);
+
+  feature_matching_->laser_cloud_info_handler(
+    image_projection_->cloud_info, laser_cloud_msg->header,
+    feature_extraction_->corner_cloud_, feature_extraction_->surface_cloud_,
+    pub_odom_laser, pub_odom_laser_incremental, laser_tf_, pub_key_poses_,
+    pub_recent_key_frames_, pub_cloud_registered_, pub_path_laser);
+
+
+
 }
 void LoamFeatureLocalization::laser_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg)
 {

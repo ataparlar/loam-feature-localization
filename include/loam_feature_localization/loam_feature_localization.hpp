@@ -19,6 +19,7 @@
 #include "imu_preintegration.hpp"
 #include "image_projection.hpp"
 #include "feature_extraction.hpp"
+#include "feature_matching.hpp"
 
 #include <Eigen/Geometry>
 #include <opencv2/opencv.hpp>
@@ -125,7 +126,7 @@ private:
   TransformFusion::SharedPtr transform_fusion_;
   ImageProjection::SharedPtr image_projection_;
   FeatureExtraction::SharedPtr feature_extraction_;
-
+  FeatureMatching::SharedPtr feature_matching_;
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud;
   rclcpp::CallbackGroup::SharedPtr callbackGroupLidar;
@@ -155,6 +156,8 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_laser;
   rclcpp::CallbackGroup::SharedPtr callbackGroupOdom;
 
+  std::unique_ptr<tf2_ros::TransformBroadcaster> laser_tf_;
+
   void imu_handler(const sensor_msgs::msg::Imu::SharedPtr imu_msg);
   void imu_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
   void laser_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
@@ -164,6 +167,9 @@ private:
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCornerPoints;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubSurfacePoints;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_key_poses_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_recent_key_frames_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_registered_;
 
   pcl::PointCloud<PointType>::Ptr cornerCloud;
   pcl::PointCloud<PointType>::Ptr surfaceCloud;

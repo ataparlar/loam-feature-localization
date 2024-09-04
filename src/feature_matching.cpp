@@ -42,7 +42,7 @@ FeatureMatching::FeatureMatching(
   horizon_scan_ = horizon_scan;
   surrounding_key_frame_search_radius_ = surrounding_key_frame_search_radius;
   min_edge_feature_number_ = min_edge_feature_number;
-  min_surface_feature_number_ = min_edge_feature_number;
+  min_surface_feature_number_ = min_surface_feature_number;
   rotation_tollerance_ = rotation_tollerance;
   z_tollerance_ = z_tollerance;
   imu_rpy_weight_ = imu_rpy_weight;
@@ -53,6 +53,8 @@ FeatureMatching::FeatureMatching(
   parameters.relinearizeThreshold = 0.1;
   parameters.relinearizeSkip = 1;
   isam_ = new gtsam::ISAM2(parameters);
+
+  allocate_memory(pub_map_corner, pub_map_surface, now);
 
 };
 
@@ -260,21 +262,34 @@ void FeatureMatching::update_initial_guess() {
   // save current transformation before any processing
   incremental_odometry_affine_front_= trans_to_affine3f(transform_to_be_mapped);
 
+  std::cout << "aaa 1" << std::endl;
+
   static Eigen::Affine3f lastImuTransformation;
   // initialization
+
+  std::cout << "cloud_key_poses_3d_: " << cloud_key_poses_3d_->size() << std::endl;
+  std::cout << "ccc 1" << std::endl;
+
   if (cloud_key_poses_3d_->points.empty())
   {
+    std::cout << "bbb 1" << std::endl;
+
     transform_to_be_mapped[0] = cloud_info_.imu_roll_init;
     transform_to_be_mapped[1] = cloud_info_.imu_pitch_init;
     transform_to_be_mapped[2] = cloud_info_.imu_yaw_init;
+
+    std::cout << "bbb 2" << std::endl;
 
 //    if (!useImuHeadingInitialization)
 //      transformTobeMapped[2] = 0;
 
     // TODO: MAKE TOPIC HERE
     lastImuTransformation = pcl::getTransformation(-66458, -43619, -42, cloud_info_.imu_roll_init, cloud_info_.imu_pitch_init, cloud_info_.imu_yaw_init); // save imu before return;
+    std::cout << "bbb 3" << std::endl;
     return;
   }
+
+  std::cout << "aaa 2" << std::endl;
 
   // use imu pre-integration estimation for pose guess
   static bool lastImuPreTransAvailable = false;
@@ -302,6 +317,9 @@ void FeatureMatching::update_initial_guess() {
     }
   }
 
+  std::cout << "aaa 3" << std::endl;
+
+
   // use imu incremental estimation for pose guess (only rotation)
   if (cloud_info_.imu_available == true)
   {
@@ -316,6 +334,7 @@ void FeatureMatching::update_initial_guess() {
     lastImuTransformation = pcl::getTransformation(0, 0, 0, cloud_info_.imu_roll_init, cloud_info_.imu_pitch_init, cloud_info_.imu_yaw_init); // save imu before return;
     return;
   }
+  std::cout << "aaa 4" << std::endl;
 }
 
 void FeatureMatching::extract_nearby()
