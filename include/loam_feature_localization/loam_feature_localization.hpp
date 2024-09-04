@@ -143,6 +143,7 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_surface;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_imu;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_laser;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_laser_incremental;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_imu;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_laser;
 

@@ -14,11 +14,15 @@
 
 #include "loam_feature_localization/feature_matching.hpp"
 
-#include <pcl/common/impl/eigen.hpp>
-
+#include <pcl/common/eigen.h>
+#include <pcl/common/angles.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <pcl/common/angles.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+
 
 namespace loam_feature_localization
 {
@@ -27,7 +31,8 @@ FeatureMatching::FeatureMatching(
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_corner,
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_surface,
   rclcpp::Time now, const Utils::SharedPtr & utils,
-  double surrounding_key_frame_search_radius,
+  double surrounding_key_frame_search_radius, double surrounding_key_frame_adding_angle_threshold,
+  double surrounding_key_frame_adding_dist_threshold,
   int min_edge_feature_number, int min_surface_feature_number,
   double rotation_tollerance, double z_tollerance, double imu_rpy_weight)
 {
@@ -36,11 +41,13 @@ FeatureMatching::FeatureMatching(
   n_scan_ = n_scan;
   horizon_scan_ = horizon_scan;
   surrounding_key_frame_search_radius_ = surrounding_key_frame_search_radius;
-  min_edge_feature_number; = min_edge_feature_number;
+  min_edge_feature_number_ = min_edge_feature_number;
   min_surface_feature_number_ = min_edge_feature_number;
-  rotation_tolerance_ = rotation_tolerance;
+  rotation_tollerance_ = rotation_tollerance;
   z_tollerance_ = z_tollerance;
   imu_rpy_weight_ = imu_rpy_weight;
+  surrounding_key_frame_adding_angle_threshold_ = surrounding_key_frame_adding_angle_threshold;
+  surrounding_key_frame_adding_dist_threshold_ = surrounding_key_frame_adding_dist_threshold;
 
   gtsam::ISAM2Params parameters;
   parameters.relinearizeThreshold = 0.1;
@@ -134,7 +141,14 @@ void FeatureMatching::allocate_memory(
 
 void FeatureMatching::laser_cloud_info_handler(
   const Utils::CloudInfo msg_in, std_msgs::msg::Header header,
-  pcl::PointCloud<PointType>::Ptr cloud_corner, pcl::PointCloud<PointType>::Ptr cloud_surface)
+  pcl::PointCloud<PointType>::Ptr cloud_corner, pcl::PointCloud<PointType>::Ptr cloud_surface,
+  const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pub_odom_laser,
+  const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pub_odom_laser_incremental,
+  const std::unique_ptr<tf2_ros::TransformBroadcaster> & br,
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_key_poses,
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_recent_key_frames,
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
+  const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr & pub_path)
 {
   // extract time stamp
   time_laser_info_stamp_ = header.stamp;
@@ -168,9 +182,9 @@ void FeatureMatching::laser_cloud_info_handler(
 
     correct_poses();
 
-    publish_odometry();
+    publish_odometry(pub_odom_laser, pub_odom_laser_incremental, br);
 
-    publish_frames();
+    publish_frames(pub_key_poses, pub_recent_key_frames, pub_cloud_registered, pub_path);
   }
 }
 
@@ -313,7 +327,7 @@ void FeatureMatching::extract_nearby()
 
   // extract all the nearby key poses and downsample them
   kdtree_surrounding_key_poses_->setInputCloud(cloud_key_poses_3d_); // create kd-tree
-  kdtree_surrounding_key_poses_->radius_search(cloud_key_poses_3d_->back(), (double)surrounding_key_frame_search_radius_, pointSearchInd, pointSearchSqDis);
+  kdtree_surrounding_key_poses_->radiusSearch(cloud_key_poses_3d_->back(), (double)surrounding_key_frame_search_radius_, pointSearchInd, pointSearchSqDis);
   for (int i = 0; i < (int)pointSearchInd.size(); ++i)
   {
     int id = pointSearchInd[i];
@@ -747,9 +761,9 @@ void FeatureMatching::transform_update()
     }
   }
 
-  transform_to_be_mapped[0] = constraintTransformation(transformTobeMapped[0], rotation_tollerance);
-  transform_to_be_mapped[1] = constraintTransformation(transformTobeMapped[1], rotation_tollerance);
-  transform_to_be_mapped[5] = constraintTransformation(transformTobeMapped[5], z_tollerance);
+  transform_to_be_mapped[0] = constraint_transformation(transform_to_be_mapped[0], rotation_tollerance_);
+  transform_to_be_mapped[1] = constraint_transformation(transform_to_be_mapped[1], rotation_tollerance_);
+  transform_to_be_mapped[5] = constraint_transformation(transform_to_be_mapped[5], z_tollerance_);
 
   incremental_odometry_affine_back_ = trans_to_affine3f(transform_to_be_mapped);
 }
@@ -764,7 +778,431 @@ float FeatureMatching::constraint_transformation(float value, float limit)
   return value;
 }
 
+bool FeatureMatching::save_frame() {
+  if (cloud_key_poses_3d_->points.empty())
+    return true;
 
+//  if (sensor == SensorType::LIVOX)
+//  {
+//    if (timeLaserInfoCur - cloudKeyPoses6D->back().time > 1.0)
+//      return true;
+//  }
+
+  Eigen::Affine3f transStart = pcl_point_to_affine3f(cloud_key_poses_6d_->back());
+  Eigen::Affine3f transFinal = pcl::getTransformation(transform_to_be_mapped[3], transform_to_be_mapped[4], transform_to_be_mapped[5],
+                                                      transform_to_be_mapped[0], transform_to_be_mapped[1], transform_to_be_mapped[2]);
+  Eigen::Affine3f transBetween = transStart.inverse() * transFinal;
+  float x, y, z, roll, pitch, yaw;
+  pcl::getTranslationAndEulerAngles(transBetween, x, y, z, roll, pitch, yaw);
+
+  if (abs(roll)  < surrounding_key_frame_adding_angle_threshold_ &&
+      abs(pitch) < surrounding_key_frame_adding_angle_threshold_ &&
+      abs(yaw)   < surrounding_key_frame_adding_angle_threshold_ &&
+      sqrt(x*x + y*y + z*z) < surrounding_key_frame_adding_dist_threshold_)
+    return false;
+
+  return true;
+}
+
+void FeatureMatching::add_odom_factor() {
+  if (cloud_key_poses_3d_->points.empty())
+  {
+    gtsam::noiseModel::Diagonal::shared_ptr priorNoise = gtsam::noiseModel::Diagonal::Variances((gtsam::Vector(6) << 1e-2, 1e-2, M_PI*M_PI, 1e8, 1e8, 1e8).finished()); // rad*rad, meter*meter
+    gtsam_graph_.add(gtsam::PriorFactor<gtsam::Pose3>(0, trans_to_gtsam_pose(transform_to_be_mapped), priorNoise));
+    initial_estimate_.insert(0, trans_to_gtsam_pose(transform_to_be_mapped));
+  }else{
+    gtsam::noiseModel::Diagonal::shared_ptr odometryNoise = gtsam::noiseModel::Diagonal::Variances((gtsam::Vector(6) << 1e-6, 1e-6, 1e-6, 1e-4, 1e-4, 1e-4).finished());
+    gtsam::Pose3 poseFrom = pcl_point_to_gtsam_pose3(cloud_key_poses_6d_->points.back());
+    gtsam::Pose3 poseTo   = trans_to_gtsam_pose(transform_to_be_mapped);
+    gtsam_graph_.add(gtsam::BetweenFactor<gtsam::Pose3>(cloud_key_poses_3d_->size()-1, cloud_key_poses_3d_->size(), poseFrom.between(poseTo), odometryNoise));
+    initial_estimate_.insert(cloud_key_poses_3d_->size(), poseTo);
+  }
+}
+
+void FeatureMatching::add_gps_factor()
+{
+  if (gps_queue_.empty())
+    return;
+
+  // wait for system initialized and settles down
+  if (cloud_key_poses_3d_->points.empty())
+    return;
+  else
+  {
+    if (utils_->pointDistance(cloud_key_poses_3d_->front(), cloud_key_poses_3d_->back()) < 5.0)
+      return;
+  }
+
+  // pose covariance small, no need to correct
+//  if (pose_covariance_(3,3) < poseCovThreshold && pose_covariance_(4,4) < poseCovThreshold)
+
+  // instead of taking pose cov threshold as a parameter, directly use it as 0.2 meters
+  if (pose_covariance_(3,3) < 0.04 && pose_covariance_(4,4) < 0.04)
+    return;
+
+  // last gps position
+  static PointType lastGPSPoint;
+
+  while (!gps_queue_.empty())
+  {
+    if (utils_->stamp2Sec(gps_queue_.front().header.stamp) < time_laser_info_cur_ - 0.2)
+    {
+      // message too old
+      gps_queue_.pop_front();
+    }
+    else if (utils_->stamp2Sec(gps_queue_.front().header.stamp) > time_laser_info_cur_ + 0.2)
+    {
+      // message too new
+      break;
+    }
+    else
+    {
+      nav_msgs::msg::Odometry thisGPS = gps_queue_.front();
+      gps_queue_.pop_front();
+
+      // GPS too noisy, skip
+      float noise_x = thisGPS.pose.covariance[0];
+      float noise_y = thisGPS.pose.covariance[7];
+      float noise_z = thisGPS.pose.covariance[14];
+      if (noise_x > 0.04 || noise_y > 0.04)
+        continue;
+      float gps_x = thisGPS.pose.pose.position.x;
+      float gps_y = thisGPS.pose.pose.position.y;
+      float gps_z = thisGPS.pose.pose.position.z;
+//      if (!useGpsElevation)
+//      {
+        gps_z = transform_to_be_mapped[5];
+        noise_z = 0.01;
+//      }
+
+      // GPS not properly initialized (0,0,0)
+      if (abs(gps_x) < 1e-6 && abs(gps_y) < 1e-6)
+        continue;
+
+      // Add GPS every a few meters
+      PointType curGPSPoint;
+      curGPSPoint.x = gps_x;
+      curGPSPoint.y = gps_y;
+      curGPSPoint.z = gps_z;
+      if (utils_->pointDistance(curGPSPoint, lastGPSPoint) < 5.0)
+        continue;
+      else
+        lastGPSPoint = curGPSPoint;
+
+      gtsam::Vector Vector3(3);
+      Vector3 << std::max(noise_x, 1.0f), std::max(noise_y, 1.0f), std::max(noise_z, 1.0f);
+      gtsam::noiseModel::Diagonal::shared_ptr gps_noise = gtsam::noiseModel::Diagonal::Variances(Vector3);
+      gtsam::GPSFactor gps_factor(cloud_key_poses_3d_->size(), gtsam::Point3(gps_x, gps_y, gps_z), gps_noise);
+      gtsam_graph_.add(gps_factor);
+
+      a_loop_is_closed_ = true;
+      break;
+    }
+  }
+}
+
+
+void FeatureMatching::add_loop_factor()
+{
+  if (loop_index_queue_.empty())
+    return;
+
+  for (int i = 0; i < (int)loop_index_queue_.size(); ++i)
+  {
+    int indexFrom = loop_index_queue_[i].first;
+    int indexTo = loop_index_queue_[i].second;
+    gtsam::Pose3 poseBetween = loop_pose_queue[i];
+    gtsam::noiseModel::Diagonal::shared_ptr noiseBetween = loop_noise_queue_[i];
+    gtsam_graph_.add(gtsam::BetweenFactor<gtsam::Pose3>(indexFrom, indexTo, poseBetween, noiseBetween));
+  }
+
+  loop_index_queue_.clear();
+  loop_pose_queue.clear();
+  loop_noise_queue_.clear();
+  a_loop_is_closed_ = true;
+}
+
+
+void FeatureMatching::save_key_frames_and_factor()
+{
+  if (save_frame() == false)
+    return;
+
+  // odom factor
+  add_odom_factor();
+
+  // gps factor
+  add_gps_factor();
+
+  // loop factor
+  add_loop_factor();
+
+  // cout << "****************************************************" << endl;
+  // gtSAMgraph.print("GTSAM Graph:\n");
+
+  // update iSAM
+  isam_->update(gtsam_graph_, initial_estimate_);
+  isam_->update();
+
+  if (a_loop_is_closed_ == true)
+  {
+    isam_->update();
+    isam_->update();
+    isam_->update();
+    isam_->update();
+    isam_->update();
+  }
+
+  gtsam_graph_.resize(0);
+  initial_estimate_.clear();
+
+  //save key poses
+  PointType thisPose3D;
+  PointTypePose thisPose6D;
+  gtsam::Pose3 latestEstimate;
+
+  isam_current_estimate_ = isam_->calculateEstimate();
+  latestEstimate = isam_current_estimate_.at<gtsam::Pose3>(isam_current_estimate_.size()-1);
+  // cout << "****************************************************" << endl;
+  // isamCurrentEstimate.print("Current estimate: ");
+
+  thisPose3D.x = latestEstimate.translation().x();
+  thisPose3D.y = latestEstimate.translation().y();
+  thisPose3D.z = latestEstimate.translation().z();
+  thisPose3D.intensity = cloud_key_poses_3d_->size(); // this can be used as index
+  cloud_key_poses_3d_->push_back(thisPose3D);
+
+  thisPose6D.x = thisPose3D.x;
+  thisPose6D.y = thisPose3D.y;
+  thisPose6D.z = thisPose3D.z;
+  thisPose6D.intensity = thisPose3D.intensity ; // this can be used as index
+  thisPose6D.roll  = latestEstimate.rotation().roll();
+  thisPose6D.pitch = latestEstimate.rotation().pitch();
+  thisPose6D.yaw   = latestEstimate.rotation().yaw();
+  thisPose6D.time = time_laser_info_cur_;
+  cloud_key_poses_6d_->push_back(thisPose6D);
+
+  // cout << "****************************************************" << endl;
+  // cout << "Pose covariance:" << endl;
+  // cout << isam->marginalCovariance(isamCurrentEstimate.size()-1) << endl << endl;
+  pose_covariance_ = isam_->marginalCovariance(isam_current_estimate_.size()-1);
+
+  // save updated transform
+  transform_to_be_mapped[0] = latestEstimate.rotation().roll();
+  transform_to_be_mapped[1] = latestEstimate.rotation().pitch();
+  transform_to_be_mapped[2] = latestEstimate.rotation().yaw();
+  transform_to_be_mapped[3] = latestEstimate.translation().x();
+  transform_to_be_mapped[4] = latestEstimate.translation().y();
+  transform_to_be_mapped[5] = latestEstimate.translation().z();
+
+  // save all the received edge and surf points
+  pcl::PointCloud<PointType>::Ptr thisCornerKeyFrame(new pcl::PointCloud<PointType>());
+  pcl::PointCloud<PointType>::Ptr thisSurfKeyFrame(new pcl::PointCloud<PointType>());
+  pcl::copyPointCloud(*laser_cloud_corner_last_ds_,  *thisCornerKeyFrame);
+  pcl::copyPointCloud(*laser_cloud_surface_last_ds_,    *thisSurfKeyFrame);
+
+  // save key frame cloud
+  corner_cloud_key_frames.push_back(thisCornerKeyFrame);
+  surface_cloud_key_frames.push_back(thisSurfKeyFrame);
+
+  // save path for visualization
+  update_path(thisPose6D);
+}
+
+
+void FeatureMatching::correct_poses()
+{
+  if (cloud_key_poses_3d_->points.empty())
+    return;
+
+  if (a_loop_is_closed_ == true)
+  {
+    // clear map cache
+    laser_cloud_map_container_.clear();
+    // clear path
+    global_path_.poses.clear();
+    // update key poses
+    int numPoses = isam_current_estimate_.size();
+    for (int i = 0; i < numPoses; ++i)
+    {
+      cloud_key_poses_3d_->points[i].x = isam_current_estimate_.at<gtsam::Pose3>(i).translation().x();
+      cloud_key_poses_3d_->points[i].y = isam_current_estimate_.at<gtsam::Pose3>(i).translation().y();
+      cloud_key_poses_3d_->points[i].z = isam_current_estimate_.at<gtsam::Pose3>(i).translation().z();
+
+      cloud_key_poses_6d_->points[i].x = cloud_key_poses_3d_->points[i].x;
+      cloud_key_poses_6d_->points[i].y = cloud_key_poses_3d_->points[i].y;
+      cloud_key_poses_6d_->points[i].z = cloud_key_poses_3d_->points[i].z;
+      cloud_key_poses_6d_->points[i].roll  = isam_current_estimate_.at<gtsam::Pose3>(i).rotation().roll();
+      cloud_key_poses_6d_->points[i].pitch = isam_current_estimate_.at<gtsam::Pose3>(i).rotation().pitch();
+      cloud_key_poses_6d_->points[i].yaw   = isam_current_estimate_.at<gtsam::Pose3>(i).rotation().yaw();
+
+      update_path(cloud_key_poses_6d_->points[i]);
+    }
+
+    a_loop_is_closed_ = false;
+  }
+}
+
+
+void FeatureMatching::update_path(const PointTypePose& pose_in)
+{
+  geometry_msgs::msg::PoseStamped pose_stamped;
+  pose_stamped.header.stamp = rclcpp::Time(pose_in.time * 1e9);
+  pose_stamped.header.frame_id = odometry_frame_;
+  pose_stamped.pose.position.x = pose_in.x;
+  pose_stamped.pose.position.y = pose_in.y;
+  pose_stamped.pose.position.z = pose_in.z;
+  tf2::Quaternion q;
+  q.setRPY(pose_in.roll, pose_in.pitch, pose_in.yaw);
+  pose_stamped.pose.orientation.x = q.x();
+  pose_stamped.pose.orientation.y = q.y();
+  pose_stamped.pose.orientation.z = q.z();
+  pose_stamped.pose.orientation.w = q.w();
+
+  global_path_.poses.push_back(pose_stamped);
+}
+
+
+void FeatureMatching::publish_odometry(
+  const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pub_odom_laser,
+  const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pub_odom_laser_incremental,
+  const std::unique_ptr<tf2_ros::TransformBroadcaster> & br)
+{
+  // Publish odometry for ROS (global)
+  nav_msgs::msg::Odometry laserOdometryROS;
+  laserOdometryROS.header.stamp = time_laser_info_stamp_;
+  laserOdometryROS.header.frame_id = odometry_frame_;
+  laserOdometryROS.child_frame_id = "odom_mapping";
+  laserOdometryROS.pose.pose.position.x = transform_to_be_mapped[3];
+  laserOdometryROS.pose.pose.position.y = transform_to_be_mapped[4];
+  laserOdometryROS.pose.pose.position.z = transform_to_be_mapped[5];
+  tf2::Quaternion quat_tf;
+  quat_tf.setRPY(transform_to_be_mapped[0], transform_to_be_mapped[1], transform_to_be_mapped[2]);
+  geometry_msgs::msg::Quaternion quat_msg;
+  tf2::convert(quat_tf, quat_msg);
+  laserOdometryROS.pose.pose.orientation = quat_msg;
+  pub_odom_laser->publish(laserOdometryROS);
+
+  // Publish TF
+  quat_tf.setRPY(transform_to_be_mapped[0], transform_to_be_mapped[1], transform_to_be_mapped[2]);
+  tf2::Transform t_odom_to_lidar = tf2::Transform(quat_tf, tf2::Vector3(transform_to_be_mapped[3], transform_to_be_mapped[4], transform_to_be_mapped[5]));
+  tf2::TimePoint time_point = tf2_ros::fromRclcpp(time_laser_info_stamp_);
+  tf2::Stamped<tf2::Transform> temp_odom_to_lidar(t_odom_to_lidar, time_point, odometry_frame_);
+  geometry_msgs::msg::TransformStamped trans_odom_to_lidar;
+  tf2::convert(temp_odom_to_lidar, trans_odom_to_lidar);
+  trans_odom_to_lidar.child_frame_id = "lidar_link";
+  br->sendTransform(trans_odom_to_lidar);
+
+  // Publish odometry for ROS (incremental)
+  static bool lastIncreOdomPubFlag = false;
+  static nav_msgs::msg::Odometry laserOdomIncremental; // incremental odometry msg
+  static Eigen::Affine3f increOdomAffine; // incremental odometry in affine
+  if (lastIncreOdomPubFlag == false)
+  {
+    lastIncreOdomPubFlag = true;
+    laserOdomIncremental = laserOdometryROS;
+    increOdomAffine = trans_to_affine3f(transform_to_be_mapped);
+  } else {
+    Eigen::Affine3f affineIncre = incremental_odometry_affine_front_.inverse() * incremental_odometry_affine_back_;
+    increOdomAffine = increOdomAffine * affineIncre;
+    float x, y, z, roll, pitch, yaw;
+    pcl::getTranslationAndEulerAngles (increOdomAffine, x, y, z, roll, pitch, yaw);
+    if (cloud_info_.imu_available == true)
+    {
+      if (std::abs(cloud_info_.imu_pitch_init) < 1.4)
+      {
+        double imuWeight = 0.1;
+        tf2::Quaternion imuQuaternion;
+        tf2::Quaternion transformQuaternion;
+        double rollMid, pitchMid, yawMid;
+
+        // slerp roll
+        transformQuaternion.setRPY(roll, 0, 0);
+        imuQuaternion.setRPY(cloud_info_.imu_roll_init, 0, 0);
+        tf2::Matrix3x3(transformQuaternion.slerp(imuQuaternion, imuWeight)).getRPY(rollMid, pitchMid, yawMid);
+        roll = rollMid;
+
+        // slerp pitch
+        transformQuaternion.setRPY(0, pitch, 0);
+        imuQuaternion.setRPY(0, cloud_info_.imu_pitch_init, 0);
+        tf2::Matrix3x3(transformQuaternion.slerp(imuQuaternion, imuWeight)).getRPY(rollMid, pitchMid, yawMid);
+        pitch = pitchMid;
+      }
+    }
+    laserOdomIncremental.header.stamp = time_laser_info_stamp_;
+    laserOdomIncremental.header.frame_id = odometry_frame_;
+    laserOdomIncremental.child_frame_id = "odom_mapping";
+    laserOdomIncremental.pose.pose.position.x = x;
+    laserOdomIncremental.pose.pose.position.y = y;
+    laserOdomIncremental.pose.pose.position.z = z;
+    tf2::Quaternion quat_tf;
+    quat_tf.setRPY(roll, pitch, yaw);
+    geometry_msgs::msg::Quaternion quat_msg;
+    tf2::convert(quat_tf, quat_msg);
+    laserOdomIncremental.pose.pose.orientation = quat_msg;
+    if (is_degenerate_)
+      laserOdomIncremental.pose.covariance[0] = 1;
+    else
+      laserOdomIncremental.pose.covariance[0] = 0;
+  }
+  pub_odom_laser_incremental->publish(laserOdomIncremental);
+}
+
+
+void FeatureMatching::publish_cloud(
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr thisPub,
+  pcl::PointCloud<PointType>::Ptr thisCloud, rclcpp::Time thisStamp, std::string thisFrame)
+{
+  sensor_msgs::msg::PointCloud2 tempCloud;
+  pcl::toROSMsg(*thisCloud, tempCloud);
+  tempCloud.header.stamp = thisStamp;
+  tempCloud.header.frame_id = thisFrame;
+  if (thisPub->get_subscription_count() != 0)
+    thisPub->publish(tempCloud);
+}
+
+
+void FeatureMatching::publish_frames(
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_key_poses,
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_recent_key_frames,
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
+  const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr & pub_path
+  )
+{
+  if (cloud_key_poses_3d_->points.empty())
+    return;
+  // publish key poses
+  publish_cloud(pub_key_poses, cloud_key_poses_3d_, time_laser_info_stamp_, odometry_frame_);
+  // Publish surrounding key frames
+  publish_cloud(pub_recent_key_frames, laser_cloud_surface_from_map_ds_,
+                time_laser_info_stamp_, odometry_frame_);
+  // publish registered key frame
+  if (pub_recent_key_frames->get_subscription_count() != 0)
+  {
+    pcl::PointCloud<PointType>::Ptr cloudOut(new pcl::PointCloud<PointType>());
+    PointTypePose thisPose6D = trans_to_point_type_pose(transform_to_be_mapped);
+    *cloudOut += *transform_point_cloud(laser_cloud_corner_last_ds_,  &thisPose6D);
+    *cloudOut += *transform_point_cloud(laser_cloud_surface_last_ds_, &thisPose6D);
+    publish_cloud(pub_recent_key_frames, cloudOut, time_laser_info_stamp_, odometry_frame_);
+  }
+  // publish registered high-res raw cloud
+//  if (pub_cloud_registered->get_subscription_count() != 0)
+//  {
+//    pcl::PointCloud<PointType>::Ptr cloudOut(new pcl::PointCloud<PointType>());
+////    pcl::fromROSMsg(cloud_info_.cloud_deskewed, *cloudOut);
+//    pcl::fromROSMsg(cloud_deske0, *cloudOut);
+//    PointTypePose thisPose6D = trans2PointTypePose(transform_to_be_mapped);
+//    *cloudOut = *transform_point_cloud(cloudOut,  &thisPose6D);
+//    publish_cloud(pub_cloud_registered, cloudOut, time_laser_info_stamp_, odometry_frame_);
+//  }
+  // publish path
+  if (pub_path->get_subscription_count() != 0)
+  {
+    global_path_.header.stamp = time_laser_info_stamp_;
+    global_path_.header.frame_id = odometry_frame_;
+    pub_path->publish(global_path_);
+  }
+}
 
 
 

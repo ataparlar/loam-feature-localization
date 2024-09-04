@@ -68,7 +68,8 @@ public:
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_corner,
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_surface,
     rclcpp::Time now, const Utils::SharedPtr & utils,
-    double surrounding_key_frame_search_radius,
+    double surrounding_key_frame_search_radius, double surrounding_key_frame_adding_angle_threshold,
+    double surrounding_key_frame_adding_dist_threshold,
     int min_edge_feature_number, int min_surface_feature_number,
     double rotation_tollerance, double z_tollerance, double imu_rpy_weight);
 
@@ -82,11 +83,14 @@ private:
   std::string map_corner_path_;
   std::string map_surface_path;
   double surrounding_key_frame_search_radius_;
+  double surrounding_key_frame_adding_angle_threshold_;
+  double surrounding_key_frame_adding_dist_threshold_;
   int min_edge_feature_number_;
   int min_surface_feature_number_;
-  double rotation_tolerance_;
-  double z_tolerance_;
+  double rotation_tollerance_;
+  double z_tollerance_;
   double imu_rpy_weight_;
+  std::string odometry_frame_;
 
   // gtsam
   gtsam::NonlinearFactorGraph gtsam_graph_;
@@ -96,7 +100,7 @@ private:
   gtsam::Values isam_current_estimate_;
   Eigen::MatrixXd pose_covariance_;
 
-  std::deque<nav_msgs::msg::Odometry> gps_queue;
+  std::deque<nav_msgs::msg::Odometry> gps_queue_;
   Utils::CloudInfo cloud_info_;
 
   std::vector<pcl::PointCloud<PointType>::Ptr> corner_cloud_key_frames;
@@ -177,7 +181,14 @@ private:
     rclcpp::Time now);
   void laser_cloud_info_handler(
     const Utils::CloudInfo msg_in, std_msgs::msg::Header header,
-    pcl::PointCloud<PointType>::Ptr cloud_corner, pcl::PointCloud<PointType>::Ptr cloud_surface);
+    pcl::PointCloud<PointType>::Ptr cloud_corner, pcl::PointCloud<PointType>::Ptr cloud_surface,
+    const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pub_odom_laser,
+    const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pub_odom_laser_incremental,
+    const std::unique_ptr<tf2_ros::TransformBroadcaster> & br,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_key_poses,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_recent_key_frames,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
+    const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr & pub_path);
   void point_associate_to_map(PointType const * const pi, PointType * const po);
   pcl::PointCloud<PointType>::Ptr transform_point_cloud(pcl::PointCloud<PointType>::Ptr cloud_in, PointTypePose* transform_in);
   gtsam::Pose3 pcl_point_to_gtsam_pose3(PointTypePose this_point);
@@ -205,8 +216,19 @@ private:
   void save_key_frames_and_factor();
   void correct_poses();
   void update_path(const PointTypePose& pose_in);
-  void publish_odometry();
-  void publish_frames();
+  void publish_odometry(
+    const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pub_odom_laser,
+    const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pub_odom_laser_incremental,
+    const std::unique_ptr<tf2_ros::TransformBroadcaster> & br);
+  void publish_cloud(
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr thisPub,
+    pcl::PointCloud<PointType>::Ptr thisCloud, rclcpp::Time thisStamp,
+    std::string thisFrame);
+  void publish_frames(
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_key_poses,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_recent_key_frames,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
+    const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr & pub_path);
 
 
 
