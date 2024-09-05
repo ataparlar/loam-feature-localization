@@ -176,6 +176,8 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
     create_publisher<nav_msgs::msg::Odometry>("/imu_odom", rclcpp::SensorDataQoS());
   pub_odom_laser =
     create_publisher<nav_msgs::msg::Odometry>("/laser_odom", rclcpp::SensorDataQoS());
+  pub_odom_laser_incremental =
+    create_publisher<nav_msgs::msg::Odometry>("/laser_odom_incremental", rclcpp::SensorDataQoS());
   pub_path_imu =
     create_publisher<nav_msgs::msg::Path>("/imu_path", rclcpp::SensorDataQoS());
   pub_path_laser =
@@ -216,7 +218,9 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
     corner_map_path_, surface_map_path_, pub_map_corner, pub_map_surface,
     this->get_clock()->now(),
     utils_, surrounding_key_frame_search_radius_, surrounding_key_frame_adding_angle_threshold_,
-    surrounding_key_frame_adding_dist_threshold_, edge_feature_min_valid_num_, surf_feature_min_valid_num_,
+    surrounding_key_frame_adding_dist_threshold_, surrounding_key_frame_density_,
+    mapping_corner_leaf_size_, mapping_surf_leaf_size_,
+    edge_feature_min_valid_num_, surf_feature_min_valid_num_,
     rotation_tollerance_, z_tollerance_, imu_rpy_weight_);
 }
 
@@ -260,7 +264,7 @@ void LoamFeatureLocalization::cloud_handler(const sensor_msgs::msg::PointCloud2:
 }
 void LoamFeatureLocalization::laser_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg)
 {
-
+  transform_fusion_->lidar_odometry_handler(odom_msg);
 }
 
 

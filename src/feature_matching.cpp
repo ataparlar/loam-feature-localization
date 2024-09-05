@@ -32,7 +32,8 @@ FeatureMatching::FeatureMatching(
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_surface,
   rclcpp::Time now, const Utils::SharedPtr & utils,
   double surrounding_key_frame_search_radius, double surrounding_key_frame_adding_angle_threshold,
-  double surrounding_key_frame_adding_dist_threshold,
+  double surrounding_key_frame_adding_dist_threshold, double surrounding_key_frame_density,
+  double mapping_corner_leaf_size, double mapping_surface_leaf_size,
   int min_edge_feature_number, int min_surface_feature_number,
   double rotation_tollerance, double z_tollerance, double imu_rpy_weight)
 {
@@ -48,6 +49,11 @@ FeatureMatching::FeatureMatching(
   imu_rpy_weight_ = imu_rpy_weight;
   surrounding_key_frame_adding_angle_threshold_ = surrounding_key_frame_adding_angle_threshold;
   surrounding_key_frame_adding_dist_threshold_ = surrounding_key_frame_adding_dist_threshold;
+  surrounding_key_frame_density_ = surrounding_key_frame_density;
+  mapping_corner_leaf_size_ = mapping_corner_leaf_size;
+  mapping_surface_leaf_size_ = mapping_surface_leaf_size;
+  map_corner_path_ = corner_map_path;
+  map_surface_path_ = surface_map_path;
 
   gtsam::ISAM2Params parameters;
   parameters.relinearizeThreshold = 0.1;
@@ -93,6 +99,13 @@ void FeatureMatching::allocate_memory(
   laser_cloud_corner_from_map_ds_.reset(new pcl::PointCloud<PointType>());
   laser_cloud_surface_from_map_ds_.reset(new pcl::PointCloud<PointType>());
 
+  down_size_filter_corner_.setLeafSize(mapping_corner_leaf_size_, mapping_corner_leaf_size_, mapping_corner_leaf_size_);
+  down_size_filter_surface_.setLeafSize(mapping_surface_leaf_size_, mapping_surface_leaf_size_, mapping_surface_leaf_size_);
+  down_size_filter_icp_.setLeafSize(mapping_surface_leaf_size_, mapping_surface_leaf_size_, mapping_surface_leaf_size_);
+  down_size_filter_surrounding_key_poses_.setLeafSize(
+    surrounding_key_frame_density_, surrounding_key_frame_density_, surrounding_key_frame_density_); // for surrounding key poses of scan-to-map optimization
+
+
   kdtree_corner_from_map_.reset(new pcl::KdTreeFLANN<PointType>());
   kdtree_surface_from_map_.reset(new pcl::KdTreeFLANN<PointType>());
 
@@ -110,7 +123,7 @@ void FeatureMatching::allocate_memory(
     PCL_ERROR ("Couldn't read corner cloud \n");
   }
   map_surface_.reset(new pcl::PointCloud<PointType>());
-  if (pcl::io::loadPCDFile<PointType> (map_surface_path, *map_surface_) == -1) //* load the file
+  if (pcl::io::loadPCDFile<PointType> (map_surface_path_, *map_surface_) == -1) //* load the file
   {
     PCL_ERROR ("Couldn't read surface cloud");
     PCL_ERROR ("Couldn't read surface cloud");
@@ -262,34 +275,22 @@ void FeatureMatching::update_initial_guess() {
   // save current transformation before any processing
   incremental_odometry_affine_front_= trans_to_affine3f(transform_to_be_mapped);
 
-  std::cout << "aaa 1" << std::endl;
-
   static Eigen::Affine3f lastImuTransformation;
   // initialization
 
-  std::cout << "cloud_key_poses_3d_: " << cloud_key_poses_3d_->size() << std::endl;
-  std::cout << "ccc 1" << std::endl;
-
   if (cloud_key_poses_3d_->points.empty())
   {
-    std::cout << "bbb 1" << std::endl;
-
     transform_to_be_mapped[0] = cloud_info_.imu_roll_init;
     transform_to_be_mapped[1] = cloud_info_.imu_pitch_init;
     transform_to_be_mapped[2] = cloud_info_.imu_yaw_init;
-
-    std::cout << "bbb 2" << std::endl;
 
 //    if (!useImuHeadingInitialization)
 //      transformTobeMapped[2] = 0;
 
     // TODO: MAKE TOPIC HERE
     lastImuTransformation = pcl::getTransformation(-66458, -43619, -42, cloud_info_.imu_roll_init, cloud_info_.imu_pitch_init, cloud_info_.imu_yaw_init); // save imu before return;
-    std::cout << "bbb 3" << std::endl;
     return;
   }
-
-  std::cout << "aaa 2" << std::endl;
 
   // use imu pre-integration estimation for pose guess
   static bool lastImuPreTransAvailable = false;
@@ -317,9 +318,6 @@ void FeatureMatching::update_initial_guess() {
     }
   }
 
-  std::cout << "aaa 3" << std::endl;
-
-
   // use imu incremental estimation for pose guess (only rotation)
   if (cloud_info_.imu_available == true)
   {
@@ -334,7 +332,6 @@ void FeatureMatching::update_initial_guess() {
     lastImuTransformation = pcl::getTransformation(0, 0, 0, cloud_info_.imu_roll_init, cloud_info_.imu_pitch_init, cloud_info_.imu_yaw_init); // save imu before return;
     return;
   }
-  std::cout << "aaa 4" << std::endl;
 }
 
 void FeatureMatching::extract_nearby()
@@ -399,9 +396,11 @@ void FeatureMatching::downsample_current_scan()
 {
     // Downsample cloud from current scan
    laser_cloud_corner_last_ds_->clear();
+   std::cout << "laser_cloud_corner_last_->size(): " <<  laser_cloud_corner_last_->size() << std::endl;
    down_size_filter_corner_.setInputCloud(laser_cloud_corner_last_);
    down_size_filter_corner_.filter(*laser_cloud_corner_last_ds_);
    laser_cloud_corner_last_ds_num_ = laser_cloud_corner_last_ds_->size();
+   std::cout << "laser_cloud_corner_last_ds_->size(): " <<  laser_cloud_corner_last_ds_->size() << std::endl;
 
    laser_cloud_surface_last_ds_->clear();
    down_size_filter_surface_.setInputCloud(laser_cloud_surface_last_);
@@ -530,11 +529,20 @@ void FeatureMatching::surface_optimization()
     matX0.setZero();
 
     if (pointSearchSqDis[4] < 1.0) {
+
+//      std::cout << "surf_optimization 3" << std::endl;
+
+      std::cout << matA0(0, 0) << "\t" << matA0(1, 0) << "\t" << matA0(2, 0) << "\t" << matA0(3, 0) << "\t" << matA0(4, 0) << std::endl;
+      std::cout << matA0(0, 1) << "\t" << matA0(1, 1) << "\t" << matA0(2, 1) << "\t" << matA0(3, 1) << "\t" << matA0(4, 1) << std::endl;
+      std::cout << matA0(0, 2) << "\t" << matA0(1, 2) << "\t" << matA0(2, 2) << "\t" << matA0(3, 2) << "\t" << matA0(4, 2) << std::endl;
+
       for (int j = 0; j < 5; j++) {
+        std::cout << "pointSearchInd[j]: " << pointSearchInd[j] << std::endl;
         matA0(j, 0) = laser_cloud_surface_last_ds_->points[pointSearchInd[j]].x;
         matA0(j, 1) = laser_cloud_surface_last_ds_->points[pointSearchInd[j]].y;
         matA0(j, 2) = laser_cloud_surface_last_ds_->points[pointSearchInd[j]].z;
       }
+      std::cout << "surf_optimization 4" << std::endl;
 
       matX0 = matA0.colPivHouseholderQr().solve(matB0);
 
@@ -555,6 +563,8 @@ void FeatureMatching::surface_optimization()
           break;
         }
       }
+
+      std::cout << "surf_optimization 5" << std::endl;
 
       if (planeValid) {
         float pd2 = pa * pointSel.x + pb * pointSel.y + pc * pointSel.z + pd;

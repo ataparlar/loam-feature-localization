@@ -69,7 +69,8 @@ public:
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_surface,
     rclcpp::Time now, const Utils::SharedPtr & utils,
     double surrounding_key_frame_search_radius, double surrounding_key_frame_adding_angle_threshold,
-    double surrounding_key_frame_adding_dist_threshold,
+    double surrounding_key_frame_adding_dist_threshold, double surrounding_key_frame_density,
+    double mapping_corner_leaf_size, double mapping_surface_leaf_size,
     int min_edge_feature_number, int min_surface_feature_number,
     double rotation_tollerance, double z_tollerance, double imu_rpy_weight);
 
@@ -101,10 +102,13 @@ private:
   int n_scan_;
   int horizon_scan_;
   std::string map_corner_path_;
-  std::string map_surface_path;
+  std::string map_surface_path_;
   double surrounding_key_frame_search_radius_;
   double surrounding_key_frame_adding_angle_threshold_;
   double surrounding_key_frame_adding_dist_threshold_;
+  double surrounding_key_frame_density_;
+  double mapping_corner_leaf_size_;
+  double mapping_surface_leaf_size_;
   int min_edge_feature_number_;
   int min_surface_feature_number_;
   double rotation_tollerance_;
