@@ -529,20 +529,11 @@ void FeatureMatching::surface_optimization()
     matX0.setZero();
 
     if (pointSearchSqDis[4] < 1.0) {
-
-//      std::cout << "surf_optimization 3" << std::endl;
-
-      std::cout << matA0(0, 0) << "\t" << matA0(1, 0) << "\t" << matA0(2, 0) << "\t" << matA0(3, 0) << "\t" << matA0(4, 0) << std::endl;
-      std::cout << matA0(0, 1) << "\t" << matA0(1, 1) << "\t" << matA0(2, 1) << "\t" << matA0(3, 1) << "\t" << matA0(4, 1) << std::endl;
-      std::cout << matA0(0, 2) << "\t" << matA0(1, 2) << "\t" << matA0(2, 2) << "\t" << matA0(3, 2) << "\t" << matA0(4, 2) << std::endl;
-
       for (int j = 0; j < 5; j++) {
-        std::cout << "pointSearchInd[j]: " << pointSearchInd[j] << std::endl;
-        matA0(j, 0) = laser_cloud_surface_last_ds_->points[pointSearchInd[j]].x;
-        matA0(j, 1) = laser_cloud_surface_last_ds_->points[pointSearchInd[j]].y;
-        matA0(j, 2) = laser_cloud_surface_last_ds_->points[pointSearchInd[j]].z;
+        matA0(j, 0) = laser_cloud_surface_from_map_ds_->points[pointSearchInd[j]].x;
+        matA0(j, 1) = laser_cloud_surface_from_map_ds_->points[pointSearchInd[j]].y;
+        matA0(j, 2) = laser_cloud_surface_from_map_ds_->points[pointSearchInd[j]].z;
       }
-      std::cout << "surf_optimization 4" << std::endl;
 
       matX0 = matA0.colPivHouseholderQr().solve(matB0);
 
@@ -556,15 +547,13 @@ void FeatureMatching::surface_optimization()
 
       bool planeValid = true;
       for (int j = 0; j < 5; j++) {
-        if (fabs(pa * laser_cloud_surface_last_ds_->points[pointSearchInd[j]].x +
-                 pb * laser_cloud_surface_last_ds_->points[pointSearchInd[j]].y +
-                 pc * laser_cloud_surface_last_ds_->points[pointSearchInd[j]].z + pd) > 0.2) {
+        if (fabs(pa * laser_cloud_surface_from_map_ds_->points[pointSearchInd[j]].x +
+                 pb * laser_cloud_surface_from_map_ds_->points[pointSearchInd[j]].y +
+                 pc * laser_cloud_surface_from_map_ds_->points[pointSearchInd[j]].z + pd) > 0.2) {
           planeValid = false;
           break;
         }
       }
-
-      std::cout << "surf_optimization 5" << std::endl;
 
       if (planeValid) {
         float pd2 = pa * pointSel.x + pb * pointSel.y + pc * pointSel.z + pd;
