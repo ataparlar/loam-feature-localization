@@ -5,8 +5,8 @@
     point_cloud_topic: /pandar_points
     output_odometry_frame: base_link
 
-    corner_map_path: /home/ataparlar/data/task_specific/loam_feature_localization/route3_clipped/route3_clipped_corner.pcd
-    surface_map_path: /home/ataparlar/data/task_specific/loam_feature_localization/route3_clipped/route3_clipped_surface.pcd
+    corner_map_path:  /home/ataparlar/data/task_specific/loam_feature_localization/route3_clipped_clipped/route3_clipped_corner.pcd
+    surface_map_path: /home/ataparlar/data/task_specific/loam_feature_localization/route3_clipped_clipped/route3_clipped_surface.pcd
 
 #    lidar_imu_x: 0.0
 #    lidar_imu_y: 0.0
