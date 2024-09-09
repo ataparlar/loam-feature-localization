@@ -75,7 +75,8 @@ private:
   std::string point_cloud_topic_;
   std::string imu_topic_;
   std::string odom_topic_;
-  std::string output_odometry_frame_;
+  std::string odometry_frame_;
+  std::string base_link_frame_;
   std::string corner_map_path_;
   std::string surface_map_path_;
 

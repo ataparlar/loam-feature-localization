@@ -97,6 +97,7 @@ void TransformFusion::imu_odometry_handler(
   }
   geometry_msgs::msg::TransformStamped ts;
   tf2::convert(tCur, ts);
+  ts.header.frame_id = odometry_frame_;
   ts.child_frame_id = base_link_frame_;
   tfBroadcaster->sendTransform(ts);
 
@@ -122,16 +123,15 @@ void TransformFusion::imu_odometry_handler(
   }
 }
 
-ImuPreintegration::ImuPreintegration(  const Utils::SharedPtr & utils,
-  std::string base_link_frame, std::string lidar_frame, std::string odometry_frame,
+ImuPreintegration::ImuPreintegration(  const Utils::SharedPtr & utils, std::string odometry_frame,
   float lidar_imu_x, float lidar_imu_y, float lidar_imu_z, float imu_gravity, float imu_acc_noise,
   float imu_acc_bias, float imu_gyro_noise, float imu_gyro_bias)
 {
   utils_ = utils;
 
-  base_link_frame_ = base_link_frame;
+//  base_link_frame_ = base_link_frame;
   odometry_frame_ = odometry_frame;
-  lidar_frame_ = lidar_frame;
+//  lidar_frame_ = lidar_frame;
   lidar_imu_x_ = lidar_imu_x;
   lidar_imu_y_ = lidar_imu_y;
   lidar_imu_z_ = lidar_imu_z;

@@ -106,8 +106,7 @@ public:
   using SharedPtr = std::shared_ptr<ImuPreintegration>;
   using ConstSharedPtr = const std::shared_ptr<ImuPreintegration>;
 
-  explicit ImuPreintegration( const Utils::SharedPtr & utils,
-    std::string base_link_frame, std::string lidar_frame, std::string odometry_frame,
+  explicit ImuPreintegration( const Utils::SharedPtr & utils, std::string odometry_frame,
     float lidar_imu_x, float lidar_imu_y, float lidar_imu_z, float imu_gravity, float imu_acc_noise,
     float imu_acc_bias, float imu_gyro_noise, float imu_gyro_bias);
 
@@ -121,8 +120,8 @@ private:
 
   std::mutex mtx;
 
-  std::string base_link_frame_;
-  std::string lidar_frame_;
+//  std::string base_link_frame_;
+//  std::string lidar_frame_;
   std::string odometry_frame_;
   float lidar_imu_x_;
   float lidar_imu_y_;

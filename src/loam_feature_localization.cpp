@@ -29,7 +29,8 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
   this->declare_parameter("imu_topic", "");
   this->declare_parameter("odom_topic", "");
   this->declare_parameter("point_cloud_topic", "");
-  this->declare_parameter("output_odometry_frame", "");
+  this->declare_parameter("odometry_frame", "");
+  this->declare_parameter("base_link_frame", "");
   this->declare_parameter("corner_map_path", "");
   this->declare_parameter("surface_map_path", "");
 
@@ -80,7 +81,8 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
   imu_topic_ = this->get_parameter("imu_topic").as_string();
   odom_topic_ = this->get_parameter("odom_topic").as_string();
   point_cloud_topic_ = this->get_parameter("point_cloud_topic").as_string();
-  output_odometry_frame_ = this->get_parameter("point_cloud_topic").as_string();
+  odometry_frame_ = this->get_parameter("odometry_frame").as_string();
+  base_link_frame_ = this->get_parameter("base_link_frame").as_string();
   corner_map_path_ = this->get_parameter("corner_map_path").as_string();
   surface_map_path_ = this->get_parameter("surface_map_path").as_string();
 
@@ -150,8 +152,6 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
     point_cloud_topic_, rclcpp::SensorDataQoS(),
     std::bind(&LoamFeatureLocalization::cloud_handler, this, std::placeholders::_1), lidar_opt);
 
-  std::cout << "point_cloud_topic_: " << point_cloud_topic_ << std::endl;
-
   pub_range_matrix =
     create_publisher<sensor_msgs::msg::Image>("/range_image", rclcpp::SensorDataQoS());
   pub_map_corner =
@@ -198,26 +198,26 @@ LoamFeatureLocalization::LoamFeatureLocalization(const rclcpp::NodeOptions & opt
 
   // Objects
   utils_ = std::make_shared<Utils>(ext_rot_, ext_rpy_, ext_trans_);
-  imu_preintegration_ = std::make_shared<ImuPreintegration>( utils_,
-    "base_link", "lidar_link", "odom_link",
+  imu_preintegration_ = std::make_shared<ImuPreintegration>( utils_, odometry_frame_,
     ext_trans_[0], ext_trans_[1], ext_trans_[2],
     imu_gravity_,
     imu_acc_noise_, imu_acc_bias_, imu_gyro_noise_, imu_gyro_bias_);
   transform_fusion_ = std::make_shared<TransformFusion>( utils_,
-    "base_link", "lidar_link", "odom_link");
+    base_link_frame_, base_link_frame_, odometry_frame_);
   image_projection_ = std::make_shared<ImageProjection>( utils_,
     N_SCAN_, Horizon_SCAN_,
-    120.0, 0.0, "lidar_link");
+    lidar_max_range_, lidar_min_range_, base_link_frame_);
   feature_extraction_ = std::make_shared<FeatureExtraction>(utils_,
     N_SCAN_, Horizon_SCAN_,
     odometry_surface_leaf_size_,
     edge_threshold_, surface_threshold_,
-    "lidar_link");
+    base_link_frame_);
+  std::cout << "odometry_frame_: " << odometry_frame_ << std::endl;
   feature_matching_ = std::make_shared<FeatureMatching>(
     N_SCAN_, Horizon_SCAN_,
     corner_map_path_, surface_map_path_, pub_map_corner, pub_map_surface,
-    this->get_clock()->now(),
-    utils_, surrounding_key_frame_search_radius_, surrounding_key_frame_adding_angle_threshold_,
+    this->get_clock()->now(), utils_, odometry_frame_, base_link_frame_,
+    surrounding_key_frame_search_radius_, surrounding_key_frame_adding_angle_threshold_,
     surrounding_key_frame_adding_dist_threshold_, surrounding_key_frame_density_,
     mapping_corner_leaf_size_, mapping_surf_leaf_size_,
     edge_feature_min_valid_num_, surf_feature_min_valid_num_,

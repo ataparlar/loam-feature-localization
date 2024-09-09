@@ -68,6 +68,7 @@ public:
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_corner,
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_surface,
     rclcpp::Time now, const Utils::SharedPtr & utils,
+    const std::string & odometry_frame,  const std::string & base_link_frame,
     double surrounding_key_frame_search_radius, double surrounding_key_frame_adding_angle_threshold,
     double surrounding_key_frame_adding_dist_threshold, double surrounding_key_frame_density,
     double mapping_corner_leaf_size, double mapping_surface_leaf_size,
@@ -115,6 +116,7 @@ private:
   double z_tollerance_;
   double imu_rpy_weight_;
   std::string odometry_frame_;
+  std::string base_link_frame_;
 
   // gtsam
   gtsam::NonlinearFactorGraph gtsam_graph_;

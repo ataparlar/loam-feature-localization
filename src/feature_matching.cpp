@@ -31,6 +31,7 @@ FeatureMatching::FeatureMatching(
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_corner,
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_surface,
   rclcpp::Time now, const Utils::SharedPtr & utils,
+  const std::string & odometry_frame,  const std::string & base_link_frame,
   double surrounding_key_frame_search_radius, double surrounding_key_frame_adding_angle_threshold,
   double surrounding_key_frame_adding_dist_threshold, double surrounding_key_frame_density,
   double mapping_corner_leaf_size, double mapping_surface_leaf_size,
@@ -38,7 +39,8 @@ FeatureMatching::FeatureMatching(
   double rotation_tollerance, double z_tollerance, double imu_rpy_weight)
 {
   utils_ = utils;
-
+  odometry_frame_ = odometry_frame;
+  base_link_frame_ = base_link_frame;
   n_scan_ = n_scan;
   horizon_scan_ = horizon_scan;
   surrounding_key_frame_search_radius_ = surrounding_key_frame_search_radius;
@@ -122,11 +124,12 @@ void FeatureMatching::allocate_memory(
     PCL_ERROR ("Couldn't read corner cloud");
     PCL_ERROR ("Couldn't read corner cloud \n");
   }
+  std::cout << "map_surface_path_: " << map_surface_path_ << std::endl;
   map_surface_.reset(new pcl::PointCloud<PointType>());
   if (pcl::io::loadPCDFile<PointType> (map_surface_path_, *map_surface_) == -1) //* load the file
   {
-    PCL_ERROR ("Couldn't read surface cloud");
-    PCL_ERROR ("Couldn't read surface cloud");
+    PCL_ERROR ("Couldn't read surface cloud \n");
+    PCL_ERROR ("Couldn't read surface cloud \n");
     PCL_ERROR ("Couldn't read surface cloud \n");
   }
 
@@ -178,29 +181,74 @@ void FeatureMatching::laser_cloud_info_handler(
 
 //  std::lock_guard<std::mutex> lock(mtx);
 
-  double mapping_process_interval = 0.2;
+  double mapping_process_interval = 0.1;
 
   static double timeLastProcessing = -1;
   if (time_laser_info_cur_ - timeLastProcessing >= mapping_process_interval)
   {
     timeLastProcessing = time_laser_info_cur_;
 
+    std::cout << "-------------------------------------------------------------------" << std::endl;
+
+    auto start_update_initial_guess = std::chrono::high_resolution_clock::now();
     update_initial_guess();
+    auto end_update_initial_guess = std::chrono::high_resolution_clock::now();
+    auto duration_update_initial_guess = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end_update_initial_guess - start_update_initial_guess);
+    std::cout << "end_update_initial_guess time: " << std::setprecision(6) << duration_update_initial_guess.count() << std::endl;
 
+    auto start_extract_surrounding_key_frames = std::chrono::high_resolution_clock::now();
     extract_surrounding_key_frames();
+    auto end_extract_surrounding_key_frames = std::chrono::high_resolution_clock::now();
+    auto duration_extract_surrounding_key_frames = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end_extract_surrounding_key_frames - start_extract_surrounding_key_frames);
+    std::cout << "extract_surrounding_key_frames time: " << std::setprecision(6) << duration_extract_surrounding_key_frames.count() << std::endl;
 
+    auto start_downsample_current_scan = std::chrono::high_resolution_clock::now();
     downsample_current_scan();
+    auto end_downsample_current_scan = std::chrono::high_resolution_clock::now();
+    auto duration_downsample_current_scan = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end_downsample_current_scan - start_downsample_current_scan);
+    std::cout << "downsample_current_scan time: " << std::setprecision(6) << duration_downsample_current_scan.count() << std::endl;
 
+    auto start_scan_to_map_optimization = std::chrono::high_resolution_clock::now();
     scan_to_map_optimization();
+    auto end_scan_to_map_optimization = std::chrono::high_resolution_clock::now();
+    auto duration_scan_to_map_optimization = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end_scan_to_map_optimization - start_scan_to_map_optimization);
+    std::cout << "scan_to_map_optimization time: " << std::setprecision(6) << duration_scan_to_map_optimization.count() << std::endl;
 
+
+    auto start_save_key_frames_and_factor = std::chrono::high_resolution_clock::now();
     save_key_frames_and_factor();
+    auto end_save_key_frames_and_factor = std::chrono::high_resolution_clock::now();
+    auto duration_save_key_frames_and_factor = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end_save_key_frames_and_factor - start_save_key_frames_and_factor);
+    std::cout << "save_key_frames_and_factor time: " << std::setprecision(6) << duration_save_key_frames_and_factor.count() << std::endl;
 
+    auto start_correct_poses = std::chrono::high_resolution_clock::now();
     correct_poses();
+    auto end_correct_poses = std::chrono::high_resolution_clock::now();
+    auto duration_correct_poses = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end_correct_poses - start_correct_poses);
+    std::cout << "correct_poses time: " << std::setprecision(6) << duration_correct_poses.count() << std::endl;
 
+    auto start_publish_odometry = std::chrono::high_resolution_clock::now();
     publish_odometry(pub_odom_laser, pub_odom_laser_incremental, br);
+    auto end_publish_odometry = std::chrono::high_resolution_clock::now();
+    auto duration_publish_odometry = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end_publish_odometry - start_publish_odometry);
+    std::cout << "publish_odometry time: " << std::setprecision(6) << duration_publish_odometry.count() << std::endl;
 
+    auto start_publish_frames = std::chrono::high_resolution_clock::now();
     publish_frames(pub_key_poses, pub_recent_key_frames, pub_cloud_registered, pub_path);
+    auto end_publish_frames = std::chrono::high_resolution_clock::now();
+    auto duration_publish_frames = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end_publish_frames - start_publish_frames);
+    std::cout << "publish_frames time: " << std::setprecision(6) << duration_publish_frames.count() << std::endl;
   }
+
+  std::cout << "-------------------------------------------------------------------\n\n" << std::endl;
 }
 
 void FeatureMatching::point_associate_to_map(PointType const * const pi, PointType * const po)
@@ -288,7 +336,9 @@ void FeatureMatching::update_initial_guess() {
 //      transformTobeMapped[2] = 0;
 
     // TODO: MAKE TOPIC HERE
-    lastImuTransformation = pcl::getTransformation(-66458, -43619, -42, cloud_info_.imu_roll_init, cloud_info_.imu_pitch_init, cloud_info_.imu_yaw_init); // save imu before return;
+//    lastImuTransformation = pcl::getTransformation(-66458, -43619, -42, cloud_info_.imu_roll_init, cloud_info_.imu_pitch_init, cloud_info_.imu_yaw_init); // save imu before return;
+    lastImuTransformation = pcl::getTransformation(-65464.3, -40904.08, -44.6, cloud_info_.imu_roll_init, cloud_info_.imu_pitch_init, cloud_info_.imu_yaw_init); // save imu before return;
+//    lastImuTransformation = pcl::getTransformation(0, 0, 0, cloud_info_.imu_roll_init, cloud_info_.imu_pitch_init, cloud_info_.imu_yaw_init); // save imu before return;
     return;
   }
 
@@ -396,11 +446,9 @@ void FeatureMatching::downsample_current_scan()
 {
     // Downsample cloud from current scan
    laser_cloud_corner_last_ds_->clear();
-   std::cout << "laser_cloud_corner_last_->size(): " <<  laser_cloud_corner_last_->size() << std::endl;
    down_size_filter_corner_.setInputCloud(laser_cloud_corner_last_);
    down_size_filter_corner_.filter(*laser_cloud_corner_last_ds_);
    laser_cloud_corner_last_ds_num_ = laser_cloud_corner_last_ds_->size();
-   std::cout << "laser_cloud_corner_last_ds_->size(): " <<  laser_cloud_corner_last_ds_->size() << std::endl;
 
    laser_cloud_surface_last_ds_->clear();
    down_size_filter_surface_.setInputCloud(laser_cloud_surface_last_);
@@ -509,16 +557,23 @@ void FeatureMatching::surface_optimization()
 {
   update_point_associate_to_map();
 
-  //        #pragma omp parallel for num_threads(numberOfCores)
+//  #pragma omp parallel for num_threads(10)
   for (int i = 0; i < laser_cloud_surface_last_ds_num_; i++)
   {
+
     PointType pointOri, pointSel, coeff;
     std::vector<int> pointSearchInd;
     std::vector<float> pointSearchSqDis;
 
     pointOri = laser_cloud_surface_last_ds_->points[i];
     point_associate_to_map(&pointOri, &pointSel);
+
+//    auto start = std::chrono::high_resolution_clock::now();
     kdtree_surface_from_map_->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
+//    auto end = std::chrono::high_resolution_clock::now();
+//    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
+//      end - start);
+//    std::cout << "\t\tkdtree_surface_from_map_->nearestKSearch time: " << std::setprecision(10) << duration.count() << std::endl;
 
     Eigen::Matrix<float, 5, 3> matA0;
     Eigen::Matrix<float, 5, 1> matB0;
@@ -527,6 +582,7 @@ void FeatureMatching::surface_optimization()
     matA0.setZero();
     matB0.fill(-1);
     matX0.setZero();
+
 
     if (pointSearchSqDis[4] < 1.0) {
       for (int j = 0; j < 5; j++) {
@@ -738,10 +794,27 @@ void FeatureMatching::scan_to_map_optimization()
       laser_cloud_ori_->clear();
       coeff_sel_->clear();
 
+      auto start_corner_optimization = std::chrono::high_resolution_clock::now();
       corner_optimization();
-      surface_optimization();
+      auto end_corner_optimization = std::chrono::high_resolution_clock::now();
+      auto duration_corner_optimization = std::chrono::duration_cast<std::chrono::milliseconds>(
+        end_corner_optimization - start_corner_optimization);
+      std::cout << "\tcorner_optimization time: " << std::setprecision(6) << duration_corner_optimization.count() << std::endl;
 
+      auto start_surface_optimization = std::chrono::high_resolution_clock::now();
+      surface_optimization();
+      auto end_surface_optimization = std::chrono::high_resolution_clock::now();
+      auto duration_surface_optimization = std::chrono::duration_cast<std::chrono::milliseconds>(
+        end_surface_optimization - start_surface_optimization);
+      std::cout << "\tsurface_optimization time: " << std::setprecision(6) << duration_surface_optimization.count() << std::endl;
+
+      auto start_combine_optimization_coeffs = std::chrono::high_resolution_clock::now();
       combine_optimization_coeffs();
+      auto end_combine_optimization_coeffs = std::chrono::high_resolution_clock::now();
+      auto duration_combine_optimization_coeffs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        end_combine_optimization_coeffs - start_combine_optimization_coeffs);
+      std::cout << "\tcombine_optimization_coeffs time: " << std::setprecision(6) << duration_combine_optimization_coeffs.count() << std::endl;
+
 
       if (lm_optimization(iterCount) == true)
         break;
@@ -823,6 +896,7 @@ bool FeatureMatching::save_frame() {
 }
 
 void FeatureMatching::add_odom_factor() {
+
   if (cloud_key_poses_3d_->points.empty())
   {
     gtsam::noiseModel::Diagonal::shared_ptr priorNoise = gtsam::noiseModel::Diagonal::Variances((gtsam::Vector(6) << 1e-2, 1e-2, M_PI*M_PI, 1e8, 1e8, 1e8).finished()); // rad*rad, meter*meter
@@ -950,10 +1024,10 @@ void FeatureMatching::save_key_frames_and_factor()
   add_odom_factor();
 
   // gps factor
-  add_gps_factor();
+//  add_gps_factor();
 
   // loop factor
-  add_loop_factor();
+//  add_loop_factor();
 
   // cout << "****************************************************" << endl;
   // gtSAMgraph.print("GTSAM Graph:\n");
@@ -1090,7 +1164,7 @@ void FeatureMatching::publish_odometry(
   nav_msgs::msg::Odometry laserOdometryROS;
   laserOdometryROS.header.stamp = time_laser_info_stamp_;
   laserOdometryROS.header.frame_id = odometry_frame_;
-  laserOdometryROS.child_frame_id = "odom_mapping";
+  laserOdometryROS.child_frame_id = base_link_frame_;
   laserOdometryROS.pose.pose.position.x = transform_to_be_mapped[3];
   laserOdometryROS.pose.pose.position.y = transform_to_be_mapped[4];
   laserOdometryROS.pose.pose.position.z = transform_to_be_mapped[5];
@@ -1108,7 +1182,8 @@ void FeatureMatching::publish_odometry(
   tf2::Stamped<tf2::Transform> temp_odom_to_lidar(t_odom_to_lidar, time_point, odometry_frame_);
   geometry_msgs::msg::TransformStamped trans_odom_to_lidar;
   tf2::convert(temp_odom_to_lidar, trans_odom_to_lidar);
-  trans_odom_to_lidar.child_frame_id = "lidar_link";
+  trans_odom_to_lidar.header.frame_id = odometry_frame_;
+  trans_odom_to_lidar.child_frame_id = base_link_frame_;
   br->sendTransform(trans_odom_to_lidar);
 
   // Publish odometry for ROS (incremental)
@@ -1149,7 +1224,7 @@ void FeatureMatching::publish_odometry(
     }
     laserOdomIncremental.header.stamp = time_laser_info_stamp_;
     laserOdomIncremental.header.frame_id = odometry_frame_;
-    laserOdomIncremental.child_frame_id = "odom_mapping";
+    laserOdomIncremental.child_frame_id = base_link_frame_;
     laserOdomIncremental.pose.pose.position.x = x;
     laserOdomIncremental.pose.pose.position.y = y;
     laserOdomIncremental.pose.pose.position.z = z;
