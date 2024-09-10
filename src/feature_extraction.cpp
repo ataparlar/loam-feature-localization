@@ -147,8 +147,8 @@ void FeatureExtraction::extract_features()
     for (int j = 0; j < 6; j++)
     {
 
-      int sp = (cloud_info_.start_ring_index[i] * (6 - j) + cloud_info_.end_ring_index[i] * j) / 6;
-      int ep = (cloud_info_.start_ring_index[i] * (5 - j) + cloud_info_.end_ring_index[i] * (j + 1)) / 6 - 1;
+      auto sp = (cloud_info_.start_ring_index[i] * (6 - j) + cloud_info_.end_ring_index[i] * j) / 6;
+      auto ep = (cloud_info_.start_ring_index[i] * (5 - j) + cloud_info_.end_ring_index[i] * (j + 1)) / 6 - 1;
 
 //      if (sp >= ep)
 //        continue;
@@ -161,7 +161,7 @@ void FeatureExtraction::extract_features()
       std::sort(cloud_smoothness_.begin()+sp, cloud_smoothness_.begin()+ep, ByValue());
 
       int largestPickedNum = 0;
-      for (int k = ep; k >= sp; k--)
+      for (uint32_t k = ep; k >= sp; k--)
       {
         int ind = cloud_smoothness_[k].ind;
         if (cloud_neighbor_picked_[ind] == 0 && cloud_curvature_[ind] > edge_threshold_)
@@ -192,7 +192,7 @@ void FeatureExtraction::extract_features()
         }
       }
 
-      for (int k = sp; k <= ep; k++)
+      for (uint32_t k = sp; k <= ep; k++)
       {
         int ind = cloud_smoothness_[k].ind;
         if (cloud_neighbor_picked_[ind] == 0 && cloud_curvature_[ind] < surface_threshold_)
@@ -218,7 +218,7 @@ void FeatureExtraction::extract_features()
         }
       }
 
-      for (int k = sp; k <= ep; k++)
+      for (uint32_t k = sp; k <= ep; k++)
       {
         if (cloud_label_[k] <= 0){
           surfaceCloudScan->push_back(extracted_cloud_->points[k]);

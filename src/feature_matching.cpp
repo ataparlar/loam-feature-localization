@@ -165,7 +165,7 @@ void FeatureMatching::laser_cloud_info_handler(
   const std::unique_ptr<tf2_ros::TransformBroadcaster> & br,
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_key_poses,
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_recent_key_frames,
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
+//  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
   const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr & pub_path)
 {
   // extract time stamp
@@ -241,7 +241,7 @@ void FeatureMatching::laser_cloud_info_handler(
     std::cout << "publish_odometry time: " << std::setprecision(6) << duration_publish_odometry.count() << std::endl;
 
     auto start_publish_frames = std::chrono::high_resolution_clock::now();
-    publish_frames(pub_key_poses, pub_recent_key_frames, pub_cloud_registered, pub_path);
+    publish_frames(pub_key_poses, pub_recent_key_frames, pub_path);
     auto end_publish_frames = std::chrono::high_resolution_clock::now();
     auto duration_publish_frames = std::chrono::duration_cast<std::chrono::milliseconds>(
       end_publish_frames - start_publish_frames);
@@ -423,7 +423,11 @@ void FeatureMatching::extract_nearby()
 
 void FeatureMatching::extract_cloud()
 {
-   if (laser_cloud_map_container_.size() > 1000)
+
+
+
+
+  if (laser_cloud_map_container_.size() > 1000)
      laser_cloud_map_container_.clear();
 }
 
@@ -1258,7 +1262,7 @@ void FeatureMatching::publish_cloud(
 void FeatureMatching::publish_frames(
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_key_poses,
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_recent_key_frames,
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
+//  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
   const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr & pub_path
   )
 {

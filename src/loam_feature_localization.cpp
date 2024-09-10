@@ -244,9 +244,8 @@ void LoamFeatureLocalization::cloud_handler(const sensor_msgs::msg::PointCloud2:
   input_for_extraction.reset(new pcl::PointCloud<PointType>());
 
   image_projection_->cloud_handler(
-    laser_cloud_msg, this->get_logger(), this->get_clock()->now(), pub_cloud_deskewed, input_for_extraction);
+    laser_cloud_msg, this->get_logger(), this->get_clock()->now(), pub_cloud_deskewed);
 
-//  auto image = prepare_visualization_image(image_projection_->range_mat_);
   pub_range_matrix->publish(image_projection_->range_mat_for_vis_);
 
   feature_extraction_->laser_cloud_info_handler(
@@ -257,7 +256,7 @@ void LoamFeatureLocalization::cloud_handler(const sensor_msgs::msg::PointCloud2:
     image_projection_->cloud_info, laser_cloud_msg->header,
     feature_extraction_->corner_cloud_, feature_extraction_->surface_cloud_,
     pub_odom_laser, pub_odom_laser_incremental, laser_tf_, pub_key_poses_,
-    pub_recent_key_frames_, pub_cloud_registered_, pub_path_laser);
+    pub_recent_key_frames_, pub_path_laser);
 
 
 

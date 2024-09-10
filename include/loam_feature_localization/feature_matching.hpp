@@ -83,7 +83,7 @@ public:
     const std::unique_ptr<tf2_ros::TransformBroadcaster> & br,
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_key_poses,
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_recent_key_frames,
-    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
+//    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
     const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr & pub_path);
   void publish_odometry(
     const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pub_odom_laser,
@@ -92,7 +92,7 @@ public:
   void publish_frames(
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_key_poses,
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_recent_key_frames,
-    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
+//    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
     const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr & pub_path);
 
 

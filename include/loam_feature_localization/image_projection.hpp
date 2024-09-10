@@ -76,8 +76,7 @@ public:
 
   void cloud_handler(
     const sensor_msgs::msg::PointCloud2::SharedPtr laserCloudMsg, rclcpp::Logger logger_,
-    rclcpp::Time now, rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_deskewed,
-    pcl::PointCloud<PointType>::Ptr & output_cloud);
+    rclcpp::Time now, rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_deskewed);
 
   void imu_handler(const sensor_msgs::msg::Imu::SharedPtr imuMsg);
 
