@@ -101,6 +101,8 @@ void FeatureMatching::allocate_memory(
   laser_cloud_corner_from_map_ds_.reset(new pcl::PointCloud<PointType>());
   laser_cloud_surface_from_map_ds_.reset(new pcl::PointCloud<PointType>());
 
+  map_corner_octree_.reset(new pcl::octree::OctreePointCloudSearch<PointType>(0.2));
+  map_surface_octree_.reset(new pcl::octree::OctreePointCloudSearch<PointType>(0.4));
   down_size_filter_corner_.setLeafSize(mapping_corner_leaf_size_, mapping_corner_leaf_size_, mapping_corner_leaf_size_);
   down_size_filter_surface_.setLeafSize(mapping_surface_leaf_size_, mapping_surface_leaf_size_, mapping_surface_leaf_size_);
   down_size_filter_icp_.setLeafSize(mapping_surface_leaf_size_, mapping_surface_leaf_size_, mapping_surface_leaf_size_);
@@ -135,10 +137,38 @@ void FeatureMatching::allocate_memory(
 
   laser_cloud_corner_from_map_ds_num_ = map_corner_->size();
   laser_cloud_surface_from_map_ds_num_ = map_surface_->size();
-  laser_cloud_corner_from_map_ = map_corner_;
-  laser_cloud_corner_from_map_ds_ = map_corner_;
-  laser_cloud_surface_from_map_ = map_surface_;
-  laser_cloud_surface_from_map_ds_ = map_surface_;
+//  laser_cloud_corner_from_map_ = map_corner_;
+//  laser_cloud_corner_from_map_ds_ = map_corner_;
+//  laser_cloud_surface_from_map_ = map_surface_;
+//  laser_cloud_surface_from_map_ds_ = map_surface_;
+
+  map_corner_clipped_.reset(new pcl::PointCloud<PointType>());
+  map_surface_clipped_.reset(new pcl::PointCloud<PointType>());
+  map_corner_octree_->setInputCloud(map_corner_);
+  map_corner_octree_->addPointsFromInputCloud();
+  map_surface_octree_->setInputCloud(map_surface_);
+  map_surface_octree_->addPointsFromInputCloud();
+
+  Eigen::Vector3f min_point(65464.3 - 200, 40904.08 - 200, 44.6 - 200);
+  Eigen::Vector3f max_point(65464.3 + 200, 40904.08 + 200, 44.6 + 200);
+//  -65464.3, -40904.08, -44.6
+
+  std::vector<int> point_indices_in_box_corner;
+  std::vector<int> point_indices_in_box_surface;
+  map_corner_octree_->boxSearch(min_point, max_point, point_indices_in_box_corner);
+  map_surface_octree_->boxSearch(min_point, max_point, point_indices_in_box_surface);
+
+  //    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_region (new pcl::PointCloud<pcl::PointXYZ>);
+  laser_cloud_corner_from_map_ds_.reset();
+  laser_cloud_surface_from_map_ds_.reset();
+  std::cout << "point_indices_in_box_corner: " << point_indices_in_box_corner.size() << std::endl;
+  std::cout << "map_corner_: " << map_corner_->size() << std::endl;
+  for (const auto& index : point_indices_in_box_corner) {
+    laser_cloud_corner_from_map_ds_->push_back(map_corner_->points[index]);
+  }
+  for (const auto& index : point_indices_in_box_surface) {
+    laser_cloud_surface_from_map_ds_->push_back(map_surface_->points[index]);
+  }
 
 
   sensor_msgs::msg::PointCloud2 ros_cloud_corner;
@@ -424,9 +454,42 @@ void FeatureMatching::extract_nearby()
 void FeatureMatching::extract_cloud()
 {
 
+  float position_difference_from_last_map_load_point =
+    std::sqrt(std::pow(transform_to_be_mapped[0] - transform_to_be_mapped_old_[0], 2) +
+              std::pow(transform_to_be_mapped[1] - transform_to_be_mapped_old_[1], 2) +
+              std::pow(transform_to_be_mapped[2] - transform_to_be_mapped_old_[2], 2));
 
+  if (position_difference_from_last_map_load_point >= 100){
+    Eigen::Vector3f min_point(transform_to_be_mapped[0] - 200, transform_to_be_mapped[1] - 200, transform_to_be_mapped[2] - 200);
+    Eigen::Vector3f max_point(transform_to_be_mapped[0] + 200, transform_to_be_mapped[1] + 200, transform_to_be_mapped[2] + 200);
 
+//    PointType min_point, max_point;
+//    min_point.x = transform_to_be_mapped[0] - 200;
+//    min_point.y = transform_to_be_mapped[1] - 200;
+//    min_point.z = transform_to_be_mapped[2] - 200;
+//    min_point.intensity = 255.0f;
+//    max_point.x = transform_to_be_mapped[0] + 200;
+//    max_point.y = transform_to_be_mapped[1] + 200;
+//    max_point.z = transform_to_be_mapped[2] + 200;
+//    max_point.intensity = 255.0f;
 
+    std::vector<int> point_indices_in_box_corner;
+    std::vector<int> point_indices_in_box_surface;
+    map_corner_octree_->boxSearch(min_point, max_point, point_indices_in_box_corner);
+    map_surface_octree_->boxSearch(min_point, max_point, point_indices_in_box_surface);
+
+//    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_region (new pcl::PointCloud<pcl::PointXYZ>);
+    laser_cloud_corner_from_map_ds_.reset();
+    laser_cloud_surface_from_map_ds_.reset();
+    for (const auto& index : point_indices_in_box_corner) {
+      laser_cloud_corner_from_map_ds_->points.push_back(map_corner_->points[index]);
+    }
+    for (const auto& index : point_indices_in_box_surface) {
+      laser_cloud_surface_from_map_ds_->points.push_back(map_surface_->points[index]);
+    }
+  } else {
+    return;
+  }
   if (laser_cloud_map_container_.size() > 1000)
      laser_cloud_map_container_.clear();
 }

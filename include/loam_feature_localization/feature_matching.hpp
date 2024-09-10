@@ -47,6 +47,7 @@
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/PriorFactor.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/octree/octree_search.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/point_cloud.h>
 #include <tf2_ros/transform_broadcaster.h>
@@ -159,6 +160,8 @@ private:
   pcl::PointCloud<PointType>::Ptr laser_cloud_surface_from_map_ds_;
   pcl::PointCloud<PointType>::Ptr map_corner_;
   pcl::PointCloud<PointType>::Ptr map_surface_;
+  pcl::PointCloud<PointType>::Ptr map_corner_clipped_;
+  pcl::PointCloud<PointType>::Ptr map_surface_clipped_;
 
   pcl::KdTreeFLANN<PointType>::Ptr kdtree_corner_from_map_;
   pcl::KdTreeFLANN<PointType>::Ptr kdtree_surface_from_map_;
@@ -166,6 +169,8 @@ private:
   pcl::KdTreeFLANN<PointType>::Ptr kdtree_surrounding_key_poses_;
   pcl::KdTreeFLANN<PointType>::Ptr kdtree_history_key_poses_;
 
+  pcl::octree::OctreePointCloudSearch<PointType>::Ptr map_corner_octree_;
+  pcl::octree::OctreePointCloudSearch<PointType>::Ptr map_surface_octree_;
   pcl::VoxelGrid<PointType> down_size_filter_corner_;
   pcl::VoxelGrid<PointType> down_size_filter_surface_;
   pcl::VoxelGrid<PointType> down_size_filter_icp_;
@@ -175,6 +180,7 @@ private:
   double time_laser_info_cur_;
 
   float transform_to_be_mapped[6];
+  float transform_to_be_mapped_old_[3];
 
   std::mutex mtx_;
   std::mutex mtx_loop_info_;
