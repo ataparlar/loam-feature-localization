@@ -153,7 +153,7 @@ void FeatureExtraction::extract_features()
 //      if (sp >= ep)
 //        continue;
       if (sp >= cloud_smoothness_.size() || ep > cloud_smoothness_.size() || sp > ep) {
-        std::cerr << "Invalid range: sp=" << sp << ", ep=" << ep << std::endl;
+//        std::cerr << "Invalid range: sp=" << sp << ", ep=" << ep << std::endl;
         continue;
       }
 

@@ -114,7 +114,7 @@ void FeatureMatching::allocate_memory(
   kdtree_surface_from_map_.reset(new pcl::KdTreeFLANN<PointType>());
 
   for (int i = 0; i < 6; ++i){
-    transform_to_be_mapped[i] = 0;
+    transform_to_be_mapped_[i] = 0;
   }
 
   mat_p_.setZero();
@@ -135,13 +135,6 @@ void FeatureMatching::allocate_memory(
     PCL_ERROR ("Couldn't read surface cloud \n");
   }
 
-  laser_cloud_corner_from_map_ds_num_ = map_corner_->size();
-  laser_cloud_surface_from_map_ds_num_ = map_surface_->size();
-//  laser_cloud_corner_from_map_ = map_corner_;
-//  laser_cloud_corner_from_map_ds_ = map_corner_;
-//  laser_cloud_surface_from_map_ = map_surface_;
-//  laser_cloud_surface_from_map_ds_ = map_surface_;
-
   map_corner_clipped_.reset(new pcl::PointCloud<PointType>());
   map_surface_clipped_.reset(new pcl::PointCloud<PointType>());
   map_corner_octree_->setInputCloud(map_corner_);
@@ -159,16 +152,18 @@ void FeatureMatching::allocate_memory(
   map_surface_octree_->boxSearch(min_point, max_point, point_indices_in_box_surface);
 
   //    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_region (new pcl::PointCloud<pcl::PointXYZ>);
-  laser_cloud_corner_from_map_ds_.reset();
-  laser_cloud_surface_from_map_ds_.reset();
-  std::cout << "point_indices_in_box_corner: " << point_indices_in_box_corner.size() << std::endl;
-  std::cout << "map_corner_: " << map_corner_->size() << std::endl;
+//  laser_cloud_corner_from_map_ds_.reset(new pcl::PointCloud<PointType>());
+//  laser_cloud_surface_from_map_ds_.reset(new pcl::PointCloud<PointType>());
   for (const auto& index : point_indices_in_box_corner) {
     laser_cloud_corner_from_map_ds_->push_back(map_corner_->points[index]);
   }
   for (const auto& index : point_indices_in_box_surface) {
     laser_cloud_surface_from_map_ds_->push_back(map_surface_->points[index]);
   }
+  laser_cloud_corner_from_map_ds_num_ = laser_cloud_corner_from_map_ds_->size();
+  laser_cloud_surface_from_map_ds_num_ = laser_cloud_surface_from_map_ds_->size();
+
+  std::cout << "ALLOCATE MEMORY - laser_cloud_corner_from_map_ds_.size: " << laser_cloud_corner_from_map_ds_->size() << std::endl;
 
 
   sensor_msgs::msg::PointCloud2 ros_cloud_corner;
@@ -351,16 +346,16 @@ PointTypePose FeatureMatching::trans_to_point_type_pose(float transform_in[])
 
 void FeatureMatching::update_initial_guess() {
   // save current transformation before any processing
-  incremental_odometry_affine_front_= trans_to_affine3f(transform_to_be_mapped);
+  incremental_odometry_affine_front_= trans_to_affine3f(transform_to_be_mapped_);
 
   static Eigen::Affine3f lastImuTransformation;
   // initialization
 
   if (cloud_key_poses_3d_->points.empty())
   {
-    transform_to_be_mapped[0] = cloud_info_.imu_roll_init;
-    transform_to_be_mapped[1] = cloud_info_.imu_pitch_init;
-    transform_to_be_mapped[2] = cloud_info_.imu_yaw_init;
+    transform_to_be_mapped_[0] = cloud_info_.imu_roll_init;
+    transform_to_be_mapped_[1] = cloud_info_.imu_pitch_init;
+    transform_to_be_mapped_[2] = cloud_info_.imu_yaw_init;
 
 //    if (!useImuHeadingInitialization)
 //      transformTobeMapped[2] = 0;
@@ -386,10 +381,11 @@ void FeatureMatching::update_initial_guess() {
       lastImuPreTransAvailable = true;
     } else {
       Eigen::Affine3f transIncre = lastImuPreTransformation.inverse() * transBack;
-      Eigen::Affine3f transTobe = trans_to_affine3f(transform_to_be_mapped);
+      Eigen::Affine3f transTobe = trans_to_affine3f(transform_to_be_mapped_);
       Eigen::Affine3f transFinal = transTobe * transIncre;
-      pcl::getTranslationAndEulerAngles(transFinal, transform_to_be_mapped[3], transform_to_be_mapped[4], transform_to_be_mapped[5],
-                                        transform_to_be_mapped[0], transform_to_be_mapped[1], transform_to_be_mapped[2]);
+      pcl::getTranslationAndEulerAngles(transFinal, transform_to_be_mapped_[3], transform_to_be_mapped_[4],
+        transform_to_be_mapped_[5], transform_to_be_mapped_[0], transform_to_be_mapped_[1],
+        transform_to_be_mapped_[2]);
 
       lastImuPreTransformation = transBack;
 
@@ -404,10 +400,11 @@ void FeatureMatching::update_initial_guess() {
     Eigen::Affine3f transBack = pcl::getTransformation(0, 0, 0, cloud_info_.imu_roll_init, cloud_info_.imu_pitch_init, cloud_info_.imu_yaw_init);
     Eigen::Affine3f transIncre = lastImuTransformation.inverse() * transBack;
 
-    Eigen::Affine3f transTobe = trans_to_affine3f(transform_to_be_mapped);
+    Eigen::Affine3f transTobe = trans_to_affine3f(transform_to_be_mapped_);
     Eigen::Affine3f transFinal = transTobe * transIncre;
-    pcl::getTranslationAndEulerAngles(transFinal, transform_to_be_mapped[3], transform_to_be_mapped[4], transform_to_be_mapped[5],
-                                      transform_to_be_mapped[0], transform_to_be_mapped[1], transform_to_be_mapped[2]);
+    pcl::getTranslationAndEulerAngles(transFinal, transform_to_be_mapped_[3], transform_to_be_mapped_[4],
+      transform_to_be_mapped_[5], transform_to_be_mapped_[0], transform_to_be_mapped_[1],
+      transform_to_be_mapped_[2]);
 
     lastImuTransformation = pcl::getTransformation(0, 0, 0, cloud_info_.imu_roll_init, cloud_info_.imu_pitch_init, cloud_info_.imu_yaw_init); // save imu before return;
     return;
@@ -455,22 +452,30 @@ void FeatureMatching::extract_cloud()
 {
 
   float position_difference_from_last_map_load_point =
-    std::sqrt(std::pow(transform_to_be_mapped[0] - transform_to_be_mapped_old_[0], 2) +
-              std::pow(transform_to_be_mapped[1] - transform_to_be_mapped_old_[1], 2) +
-              std::pow(transform_to_be_mapped[2] - transform_to_be_mapped_old_[2], 2));
+    std::sqrt(std::pow(transform_to_be_mapped_[0] - transform_to_be_mapped_old_[0], 2) +
+              std::pow(transform_to_be_mapped_[1] - transform_to_be_mapped_old_[1], 2) +
+              std::pow(transform_to_be_mapped_[2] - transform_to_be_mapped_old_[2], 2));
 
-  if (position_difference_from_last_map_load_point >= 100){
-    Eigen::Vector3f min_point(transform_to_be_mapped[0] - 200, transform_to_be_mapped[1] - 200, transform_to_be_mapped[2] - 200);
-    Eigen::Vector3f max_point(transform_to_be_mapped[0] + 200, transform_to_be_mapped[1] + 200, transform_to_be_mapped[2] + 200);
+  if (position_difference_from_last_map_load_point >= 2){
+    Eigen::Vector3f min_point(
+      transform_to_be_mapped_[0] - 200, transform_to_be_mapped_[1] - 200,
+      transform_to_be_mapped_[2] - 200);
+    Eigen::Vector3f max_point(
+      transform_to_be_mapped_[0] + 200, transform_to_be_mapped_[1] + 200,
+      transform_to_be_mapped_[2] + 200);
 
-//    PointType min_point, max_point;
-//    min_point.x = transform_to_be_mapped[0] - 200;
-//    min_point.y = transform_to_be_mapped[1] - 200;
-//    min_point.z = transform_to_be_mapped[2] - 200;
+    std::cout << "transform_to_be_mapped_[0]: " << transform_to_be_mapped_[0] << std::endl;
+    std::cout << "transform_to_be_mapped_[1]: " << transform_to_be_mapped_[1] << std::endl;
+    std::cout << "transform_to_be_mapped_[2]: " << transform_to_be_mapped_[2] << std::endl;
+//
+    //    PointType min_point, max_point;
+//    min_point.x = transform_to_be_mapped_[0] - 200;
+//    min_point.y = transform_to_be_mapped_[1] - 200;
+//    min_point.z = transform_to_be_mapped_[2] - 200;
 //    min_point.intensity = 255.0f;
-//    max_point.x = transform_to_be_mapped[0] + 200;
-//    max_point.y = transform_to_be_mapped[1] + 200;
-//    max_point.z = transform_to_be_mapped[2] + 200;
+//    max_point.x = transform_to_be_mapped_[0] + 200;
+//    max_point.y = transform_to_be_mapped_[1] + 200;
+//    max_point.z = transform_to_be_mapped_[2] + 200;
 //    max_point.intensity = 255.0f;
 
     std::vector<int> point_indices_in_box_corner;
@@ -479,8 +484,8 @@ void FeatureMatching::extract_cloud()
     map_surface_octree_->boxSearch(min_point, max_point, point_indices_in_box_surface);
 
 //    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_region (new pcl::PointCloud<pcl::PointXYZ>);
-    laser_cloud_corner_from_map_ds_.reset();
-    laser_cloud_surface_from_map_ds_.reset();
+    laser_cloud_corner_from_map_ds_.reset(new pcl::PointCloud<PointType>());
+    laser_cloud_surface_from_map_ds_.reset(new pcl::PointCloud<PointType>());
     for (const auto& index : point_indices_in_box_corner) {
       laser_cloud_corner_from_map_ds_->points.push_back(map_corner_->points[index]);
     }
@@ -490,8 +495,17 @@ void FeatureMatching::extract_cloud()
   } else {
     return;
   }
+  laser_cloud_corner_from_map_ds_num_ = laser_cloud_corner_from_map_ds_->size();
+  laser_cloud_surface_from_map_ds_num_ = laser_cloud_surface_from_map_ds_->size();
+
+  std::cout << "\n\n\nEXTRACT CLOUD - laser_cloud_corner_from_map_ds_.size: " << laser_cloud_corner_from_map_ds_->size() << "\n\n\n" << std::endl;
+
+
   if (laser_cloud_map_container_.size() > 1000)
      laser_cloud_map_container_.clear();
+  transform_to_be_mapped_old_[0] = transform_to_be_mapped_[0];
+  transform_to_be_mapped_old_[1] = transform_to_be_mapped_[1];
+  transform_to_be_mapped_old_[2] = transform_to_be_mapped_[2];
 }
 
 void FeatureMatching::extract_surrounding_key_frames()
@@ -525,7 +539,7 @@ void FeatureMatching::downsample_current_scan()
 
 void FeatureMatching::update_point_associate_to_map()
 {
-  trans_point_associate_to_map_ = trans_to_affine3f(transform_to_be_mapped);
+  trans_point_associate_to_map_ = trans_to_affine3f(transform_to_be_mapped_);
 }
 
 void FeatureMatching::corner_optimization()
@@ -732,12 +746,12 @@ bool FeatureMatching::lm_optimization(int iter_count)
   // yaw = pitch          ---     yaw = roll
 
   // lidar -> camera
-  float srx = sin(transform_to_be_mapped[1]);
-  float crx = cos(transform_to_be_mapped[1]);
-  float sry = sin(transform_to_be_mapped[2]);
-  float cry = cos(transform_to_be_mapped[2]);
-  float srz = sin(transform_to_be_mapped[0]);
-  float crz = cos(transform_to_be_mapped[0]);
+  float srx = sin(transform_to_be_mapped_[1]);
+  float crx = cos(transform_to_be_mapped_[1]);
+  float sry = sin(transform_to_be_mapped_[2]);
+  float cry = cos(transform_to_be_mapped_[2]);
+  float srz = sin(transform_to_be_mapped_[0]);
+  float crz = cos(transform_to_be_mapped_[0]);
 
   int laserCloudSelNum = laser_cloud_ori_->size();
   if (laserCloudSelNum < 50) {
@@ -823,12 +837,12 @@ bool FeatureMatching::lm_optimization(int iter_count)
     matX = matP * matX2;
   }
 
-  transform_to_be_mapped[0] += matX.at<float>(0, 0);
-  transform_to_be_mapped[1] += matX.at<float>(1, 0);
-  transform_to_be_mapped[2] += matX.at<float>(2, 0);
-  transform_to_be_mapped[3] += matX.at<float>(3, 0);
-  transform_to_be_mapped[4] += matX.at<float>(4, 0);
-  transform_to_be_mapped[5] += matX.at<float>(5, 0);
+  transform_to_be_mapped_[0] += matX.at<float>(0, 0);
+  transform_to_be_mapped_[1] += matX.at<float>(1, 0);
+  transform_to_be_mapped_[2] += matX.at<float>(2, 0);
+  transform_to_be_mapped_[3] += matX.at<float>(3, 0);
+  transform_to_be_mapped_[4] += matX.at<float>(4, 0);
+  transform_to_be_mapped_[5] += matX.at<float>(5, 0);
 
   float deltaR = sqrt(
     std::pow(pcl::rad2deg(matX.at<float>(0, 0)), 2) +
@@ -853,6 +867,7 @@ void FeatureMatching::scan_to_map_optimization()
 
   if (laser_cloud_corner_last_ds_num_ > min_edge_feature_number_ && laser_cloud_surface_last_ds_num_ > min_surface_feature_number_)
   {
+    std::cout << "laser_cloud_corner_from_map_ds_.size: " << laser_cloud_corner_from_map_ds_->size() << std::endl;
     kdtree_corner_from_map_->setInputCloud(laser_cloud_corner_from_map_ds_);
     kdtree_surface_from_map_->setInputCloud(laser_cloud_surface_from_map_ds_);
 
@@ -906,24 +921,24 @@ void FeatureMatching::transform_update()
       double rollMid, pitchMid, yawMid;
 
       // slerp roll
-      transformQuaternion.setRPY(transform_to_be_mapped[0], 0, 0);
+      transformQuaternion.setRPY(transform_to_be_mapped_[0], 0, 0);
       imuQuaternion.setRPY(cloud_info_.imu_roll_init, 0, 0);
       tf2::Matrix3x3(transformQuaternion.slerp(imuQuaternion, imuWeight)).getRPY(rollMid, pitchMid, yawMid);
-      transform_to_be_mapped[0] = rollMid;
+      transform_to_be_mapped_[0] = rollMid;
 
       // slerp pitch
-      transformQuaternion.setRPY(0, transform_to_be_mapped[1], 0);
+      transformQuaternion.setRPY(0, transform_to_be_mapped_[1], 0);
       imuQuaternion.setRPY(0, cloud_info_.imu_pitch_init, 0);
       tf2::Matrix3x3(transformQuaternion.slerp(imuQuaternion, imuWeight)).getRPY(rollMid, pitchMid, yawMid);
-      transform_to_be_mapped[1] = pitchMid;
+      transform_to_be_mapped_[1] = pitchMid;
     }
   }
 
-  transform_to_be_mapped[0] = constraint_transformation(transform_to_be_mapped[0], rotation_tollerance_);
-  transform_to_be_mapped[1] = constraint_transformation(transform_to_be_mapped[1], rotation_tollerance_);
-  transform_to_be_mapped[5] = constraint_transformation(transform_to_be_mapped[5], z_tollerance_);
+  transform_to_be_mapped_[0] = constraint_transformation(transform_to_be_mapped_[0], rotation_tollerance_);
+  transform_to_be_mapped_[1] = constraint_transformation(transform_to_be_mapped_[1], rotation_tollerance_);
+  transform_to_be_mapped_[5] = constraint_transformation(transform_to_be_mapped_[5], z_tollerance_);
 
-  incremental_odometry_affine_back_ = trans_to_affine3f(transform_to_be_mapped);
+  incremental_odometry_affine_back_ = trans_to_affine3f(transform_to_be_mapped_);
 }
 
 float FeatureMatching::constraint_transformation(float value, float limit)
@@ -947,8 +962,9 @@ bool FeatureMatching::save_frame() {
 //  }
 
   Eigen::Affine3f transStart = pcl_point_to_affine3f(cloud_key_poses_6d_->back());
-  Eigen::Affine3f transFinal = pcl::getTransformation(transform_to_be_mapped[3], transform_to_be_mapped[4], transform_to_be_mapped[5],
-                                                      transform_to_be_mapped[0], transform_to_be_mapped[1], transform_to_be_mapped[2]);
+  Eigen::Affine3f transFinal = pcl::getTransformation(
+    transform_to_be_mapped_[3], transform_to_be_mapped_[4], transform_to_be_mapped_[5],
+    transform_to_be_mapped_[0], transform_to_be_mapped_[1], transform_to_be_mapped_[2]);
   Eigen::Affine3f transBetween = transStart.inverse() * transFinal;
   float x, y, z, roll, pitch, yaw;
   pcl::getTranslationAndEulerAngles(transBetween, x, y, z, roll, pitch, yaw);
@@ -967,12 +983,12 @@ void FeatureMatching::add_odom_factor() {
   if (cloud_key_poses_3d_->points.empty())
   {
     gtsam::noiseModel::Diagonal::shared_ptr priorNoise = gtsam::noiseModel::Diagonal::Variances((gtsam::Vector(6) << 1e-2, 1e-2, M_PI*M_PI, 1e8, 1e8, 1e8).finished()); // rad*rad, meter*meter
-    gtsam_graph_.add(gtsam::PriorFactor<gtsam::Pose3>(0, trans_to_gtsam_pose(transform_to_be_mapped), priorNoise));
-    initial_estimate_.insert(0, trans_to_gtsam_pose(transform_to_be_mapped));
+    gtsam_graph_.add(gtsam::PriorFactor<gtsam::Pose3>(0, trans_to_gtsam_pose(transform_to_be_mapped_), priorNoise));
+    initial_estimate_.insert(0, trans_to_gtsam_pose(transform_to_be_mapped_));
   }else{
     gtsam::noiseModel::Diagonal::shared_ptr odometryNoise = gtsam::noiseModel::Diagonal::Variances((gtsam::Vector(6) << 1e-6, 1e-6, 1e-6, 1e-4, 1e-4, 1e-4).finished());
     gtsam::Pose3 poseFrom = pcl_point_to_gtsam_pose3(cloud_key_poses_6d_->points.back());
-    gtsam::Pose3 poseTo   = trans_to_gtsam_pose(transform_to_be_mapped);
+    gtsam::Pose3 poseTo   = trans_to_gtsam_pose(transform_to_be_mapped_);
     gtsam_graph_.add(gtsam::BetweenFactor<gtsam::Pose3>(cloud_key_poses_3d_->size()-1, cloud_key_poses_3d_->size(), poseFrom.between(poseTo), odometryNoise));
     initial_estimate_.insert(cloud_key_poses_3d_->size(), poseTo);
   }
@@ -1030,7 +1046,7 @@ void FeatureMatching::add_gps_factor()
       float gps_z = thisGPS.pose.pose.position.z;
 //      if (!useGpsElevation)
 //      {
-        gps_z = transform_to_be_mapped[5];
+        gps_z = transform_to_be_mapped_[5];
         noise_z = 0.01;
 //      }
 
@@ -1147,12 +1163,12 @@ void FeatureMatching::save_key_frames_and_factor()
   pose_covariance_ = isam_->marginalCovariance(isam_current_estimate_.size()-1);
 
   // save updated transform
-  transform_to_be_mapped[0] = latestEstimate.rotation().roll();
-  transform_to_be_mapped[1] = latestEstimate.rotation().pitch();
-  transform_to_be_mapped[2] = latestEstimate.rotation().yaw();
-  transform_to_be_mapped[3] = latestEstimate.translation().x();
-  transform_to_be_mapped[4] = latestEstimate.translation().y();
-  transform_to_be_mapped[5] = latestEstimate.translation().z();
+  transform_to_be_mapped_[0] = latestEstimate.rotation().roll();
+  transform_to_be_mapped_[1] = latestEstimate.rotation().pitch();
+  transform_to_be_mapped_[2] = latestEstimate.rotation().yaw();
+  transform_to_be_mapped_[3] = latestEstimate.translation().x();
+  transform_to_be_mapped_[4] = latestEstimate.translation().y();
+  transform_to_be_mapped_[5] = latestEstimate.translation().z();
 
   // save all the received edge and surf points
   pcl::PointCloud<PointType>::Ptr thisCornerKeyFrame(new pcl::PointCloud<PointType>());
@@ -1232,19 +1248,22 @@ void FeatureMatching::publish_odometry(
   laserOdometryROS.header.stamp = time_laser_info_stamp_;
   laserOdometryROS.header.frame_id = odometry_frame_;
   laserOdometryROS.child_frame_id = base_link_frame_;
-  laserOdometryROS.pose.pose.position.x = transform_to_be_mapped[3];
-  laserOdometryROS.pose.pose.position.y = transform_to_be_mapped[4];
-  laserOdometryROS.pose.pose.position.z = transform_to_be_mapped[5];
+  laserOdometryROS.pose.pose.position.x = transform_to_be_mapped_[3];
+  laserOdometryROS.pose.pose.position.y = transform_to_be_mapped_[4];
+  laserOdometryROS.pose.pose.position.z = transform_to_be_mapped_[5];
   tf2::Quaternion quat_tf;
-  quat_tf.setRPY(transform_to_be_mapped[0], transform_to_be_mapped[1], transform_to_be_mapped[2]);
+  quat_tf.setRPY(
+    transform_to_be_mapped_[0], transform_to_be_mapped_[1], transform_to_be_mapped_[2]);
   geometry_msgs::msg::Quaternion quat_msg;
   tf2::convert(quat_tf, quat_msg);
   laserOdometryROS.pose.pose.orientation = quat_msg;
   pub_odom_laser->publish(laserOdometryROS);
 
   // Publish TF
-  quat_tf.setRPY(transform_to_be_mapped[0], transform_to_be_mapped[1], transform_to_be_mapped[2]);
-  tf2::Transform t_odom_to_lidar = tf2::Transform(quat_tf, tf2::Vector3(transform_to_be_mapped[3], transform_to_be_mapped[4], transform_to_be_mapped[5]));
+  quat_tf.setRPY(
+    transform_to_be_mapped_[0], transform_to_be_mapped_[1], transform_to_be_mapped_[2]);
+  tf2::Transform t_odom_to_lidar = tf2::Transform(quat_tf, tf2::Vector3(
+               transform_to_be_mapped_[3], transform_to_be_mapped_[4], transform_to_be_mapped_[5]));
   tf2::TimePoint time_point = tf2_ros::fromRclcpp(time_laser_info_stamp_);
   tf2::Stamped<tf2::Transform> temp_odom_to_lidar(t_odom_to_lidar, time_point, odometry_frame_);
   geometry_msgs::msg::TransformStamped trans_odom_to_lidar;
@@ -1261,7 +1280,7 @@ void FeatureMatching::publish_odometry(
   {
     lastIncreOdomPubFlag = true;
     laserOdomIncremental = laserOdometryROS;
-    increOdomAffine = trans_to_affine3f(transform_to_be_mapped);
+    increOdomAffine = trans_to_affine3f(transform_to_be_mapped_);
   } else {
     Eigen::Affine3f affineIncre = incremental_odometry_affine_front_.inverse() * incremental_odometry_affine_back_;
     increOdomAffine = increOdomAffine * affineIncre;
@@ -1340,7 +1359,7 @@ void FeatureMatching::publish_frames(
   if (pub_recent_key_frames->get_subscription_count() != 0)
   {
     pcl::PointCloud<PointType>::Ptr cloudOut(new pcl::PointCloud<PointType>());
-    PointTypePose thisPose6D = trans_to_point_type_pose(transform_to_be_mapped);
+    PointTypePose thisPose6D = trans_to_point_type_pose(transform_to_be_mapped_);
     *cloudOut += *transform_point_cloud(laser_cloud_corner_last_ds_,  &thisPose6D);
     *cloudOut += *transform_point_cloud(laser_cloud_surface_last_ds_, &thisPose6D);
     publish_cloud(pub_recent_key_frames, cloudOut, time_laser_info_stamp_, odometry_frame_);
@@ -1351,7 +1370,7 @@ void FeatureMatching::publish_frames(
 //    pcl::PointCloud<PointType>::Ptr cloudOut(new pcl::PointCloud<PointType>());
 ////    pcl::fromROSMsg(cloud_info_.cloud_deskewed, *cloudOut);
 //    pcl::fromROSMsg(cloud_deske0, *cloudOut);
-//    PointTypePose thisPose6D = trans2PointTypePose(transform_to_be_mapped);
+//    PointTypePose thisPose6D = trans2PointTypePose(transform_to_be_mapped_);
 //    *cloudOut = *transform_point_cloud(cloudOut,  &thisPose6D);
 //    publish_cloud(pub_cloud_registered, cloudOut, time_laser_info_stamp_, odometry_frame_);
 //  }

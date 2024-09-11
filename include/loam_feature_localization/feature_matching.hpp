@@ -179,7 +179,7 @@ private:
   rclcpp::Time time_laser_info_stamp_;
   double time_laser_info_cur_;
 
-  float transform_to_be_mapped[6];
+  float transform_to_be_mapped_[6];
   float transform_to_be_mapped_old_[3];
 
   std::mutex mtx_;
