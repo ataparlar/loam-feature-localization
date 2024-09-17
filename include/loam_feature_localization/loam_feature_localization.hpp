@@ -129,7 +129,9 @@ private:
   FeatureExtraction::SharedPtr feature_extraction_;
   FeatureMatching::SharedPtr feature_matching_;
 
-  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_image_projection;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_feature_extraction;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_feature_matching;
   rclcpp::CallbackGroup::SharedPtr callbackGroupLidar;
 //  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubLaserCloud;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_range_matrix;
@@ -139,6 +141,8 @@ private:
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_map_corner;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_map_surface;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_map_clipped_corner;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_map_clipped_surface;
 //  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCloudBasic;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_deskewed;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_corner;
@@ -162,7 +166,9 @@ private:
   void imu_handler(const sensor_msgs::msg::Imu::SharedPtr imu_msg);
   void imu_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
   void laser_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
-  void cloud_handler(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
+  void cloud_handler_image_projection(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
+  void cloud_handler_feature_extraction(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
+  void cloud_handler_feature_matching(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
 
   // Feature Extraction
 
@@ -174,8 +180,6 @@ private:
 
   pcl::PointCloud<PointType>::Ptr cornerCloud;
   pcl::PointCloud<PointType>::Ptr surfaceCloud;
-
-
 
 };
 }  // namespace loam_feature_localization

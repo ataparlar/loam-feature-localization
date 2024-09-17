@@ -38,6 +38,7 @@ set(LOAM_FEATURE_LOCALIZATION_HEADERS
         include/loam_feature_localization/image_projection.hpp
         include/loam_feature_localization/imu_preintegration.hpp
         include/loam_feature_localization/feature_matching.hpp
+        include/loam_feature_localization/stop_watch.hpp
         include/loam_feature_localization/utils.hpp)
 
 

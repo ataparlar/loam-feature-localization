@@ -84,7 +84,8 @@ public:
     const std::unique_ptr<tf2_ros::TransformBroadcaster> & br,
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_key_poses,
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_recent_key_frames,
-//    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_cloud_registered,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_clipped_corner,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_clipped_surface,
     const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr & pub_path);
   void publish_odometry(
     const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pub_odom_laser,
@@ -219,9 +220,15 @@ private:
   Eigen::Affine3f trans_to_affine3f(float transform_in[]);
   PointTypePose trans_to_point_type_pose(float transform_in[]);
   void update_initial_guess();
-  void extract_nearby();
-  void extract_cloud();
-  void extract_surrounding_key_frames();
+  void extract_nearby(
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_clipped_corner,
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_clipped_surface);
+  void extract_cloud(
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_clipped_corner,
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_clipped_surface);
+  void extract_surrounding_key_frames(
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_clipped_corner,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_map_clipped_surface);
   void downsample_current_scan();
   void update_point_associate_to_map();
   void corner_optimization();
