@@ -58,6 +58,7 @@ void TransformFusion::imu_odometry_handler(
 //  std::lock_guard<std::mutex> lock(mtx);
 
   imuOdomQueue.push_back(*odomMsg);
+  std::cout << "lidarOdomTime: " << lidarOdomTime << std::endl;
 
   // get latest odometry (at current IMU stamp)
   if (lidarOdomTime == -1) return;
@@ -83,6 +84,7 @@ void TransformFusion::imu_odometry_handler(
   laserOdometry.pose.pose.orientation = t.transform.rotation;
   pubImuOdometry->publish(laserOdometry);
 
+
   // publish tf
   if (lidar_frame_ != base_link_frame_) {
     try {
@@ -95,10 +97,12 @@ void TransformFusion::imu_odometry_handler(
       tCur * lidar2Baselink, tf2_ros::fromMsg(odomMsg->header.stamp), odometry_frame_);
     tCur = tb;
   }
+  RCLCPP_INFO(logger_, "lgo");
   geometry_msgs::msg::TransformStamped ts;
   tf2::convert(tCur, ts);
-  ts.header.frame_id = odometry_frame_;
+//  ts.header.frame_id = odometry_frame_;
   ts.child_frame_id = base_link_frame_;
+//  ts.header.stamp = imuOdomQueue.back().header.stamp;
   tfBroadcaster->sendTransform(ts);
 
   // publish IMU path

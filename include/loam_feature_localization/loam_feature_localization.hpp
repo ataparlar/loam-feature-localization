@@ -166,9 +166,10 @@ private:
   void imu_handler(const sensor_msgs::msg::Imu::SharedPtr imu_msg);
   void imu_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
   void laser_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
-  void cloud_handler_image_projection(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
-  void cloud_handler_feature_extraction(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
-  void cloud_handler_feature_matching(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
+  void cloud_handler(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
+//  void cloud_handler_image_projection(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
+//  void cloud_handler_feature_extraction(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
+//  void cloud_handler_feature_matching(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
 
   // Feature Extraction
 
