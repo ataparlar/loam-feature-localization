@@ -65,7 +65,8 @@ public:
   using SharedPtr = std::shared_ptr<TransformFusion>;
   using ConstSharedPtr = const std::shared_ptr<TransformFusion>;
 
-  explicit TransformFusion( const Utils::SharedPtr & utils,
+  explicit TransformFusion( const Utils::SharedPtr & utils, rclcpp::Clock::SharedPtr clock,
+                           std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_broadcaster,
     std::string base_link_frame, std::string lidar_frame, std::string odometry_frame);
 
   void lidar_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
@@ -89,9 +90,9 @@ private:
   Eigen::Isometry3d imuOdomAffineFront;
   Eigen::Isometry3d imuOdomAffineBack;
 
-  std::shared_ptr<tf2_ros::Buffer> tfBuffer;
-  std::shared_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;
-  std::shared_ptr<tf2_ros::TransformListener> tfListener;
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   tf2::Stamped<tf2::Transform> lidar2Baselink;
 
   double lidarOdomTime = -1;

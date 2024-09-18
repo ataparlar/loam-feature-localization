@@ -25,10 +25,16 @@ using gtsam::symbol_shorthand::X;  // Pose3 (x,y,z,r,p,y)
 namespace loam_feature_localization
 {
 
-TransformFusion::TransformFusion( const Utils::SharedPtr & utils,
-  std::string base_link_frame, std::string lidar_frame, std::string odometry_frame)
+TransformFusion::TransformFusion( const Utils::SharedPtr & utils, rclcpp::Clock::SharedPtr clock,
+                                 std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_broadcaster,
+                                 std::string base_link_frame, std::string lidar_frame, std::string odometry_frame)
 {
   utils_ = utils;
+
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(clock);
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+  tf_broadcaster_ = tf_broadcaster;
+
   base_link_frame_ = base_link_frame;
   odometry_frame_ = odometry_frame;
   lidar_frame_ = lidar_frame;
@@ -58,7 +64,6 @@ void TransformFusion::imu_odometry_handler(
 //  std::lock_guard<std::mutex> lock(mtx);
 
   imuOdomQueue.push_back(*odomMsg);
-  std::cout << "lidarOdomTime: " << lidarOdomTime << std::endl;
 
   // get latest odometry (at current IMU stamp)
   if (lidarOdomTime == -1) return;
@@ -77,19 +82,18 @@ void TransformFusion::imu_odometry_handler(
   tf2::convert(t, tCur);
 
   // publish latest odometry
-  nav_msgs::msg::Odometry laserOdometry = imuOdomQueue.back();
-  laserOdometry.pose.pose.position.x = t.transform.translation.x;
-  laserOdometry.pose.pose.position.y = t.transform.translation.y;
-  laserOdometry.pose.pose.position.z = t.transform.translation.z;
-  laserOdometry.pose.pose.orientation = t.transform.rotation;
-  pubImuOdometry->publish(laserOdometry);
-
+  nav_msgs::msg::Odometry imuOdometry = imuOdomQueue.back();
+  imuOdometry.pose.pose.position.x = t.transform.translation.x;
+  imuOdometry.pose.pose.position.y = t.transform.translation.y;
+  imuOdometry.pose.pose.position.z = t.transform.translation.z;
+  imuOdometry.pose.pose.orientation = t.transform.rotation;
+  pubImuOdometry->publish(imuOdometry);
 
   // publish tf
   if (lidar_frame_ != base_link_frame_) {
     try {
       tf2::fromMsg(
-        tfBuffer->lookupTransform(lidar_frame_, base_link_frame_, rclcpp::Time(0)), lidar2Baselink);
+        tf_buffer_->lookupTransform(lidar_frame_, base_link_frame_, rclcpp::Time(0)), lidar2Baselink);
     } catch (tf2::TransformException & ex) {
       RCLCPP_ERROR(logger_, "%s", ex.what());
     }
@@ -97,13 +101,13 @@ void TransformFusion::imu_odometry_handler(
       tCur * lidar2Baselink, tf2_ros::fromMsg(odomMsg->header.stamp), odometry_frame_);
     tCur = tb;
   }
-  RCLCPP_INFO(logger_, "lgo");
+
   geometry_msgs::msg::TransformStamped ts;
   tf2::convert(tCur, ts);
 //  ts.header.frame_id = odometry_frame_;
   ts.child_frame_id = base_link_frame_;
 //  ts.header.stamp = imuOdomQueue.back().header.stamp;
-  tfBroadcaster->sendTransform(ts);
+  tf_broadcaster_->sendTransform(ts);
 
   // publish IMU path
   static nav_msgs::msg::Path imuPath;
@@ -114,7 +118,7 @@ void TransformFusion::imu_odometry_handler(
     geometry_msgs::msg::PoseStamped pose_stamped;
     pose_stamped.header.stamp = imuOdomQueue.back().header.stamp;
     pose_stamped.header.frame_id = odometry_frame_;
-    pose_stamped.pose = laserOdometry.pose.pose;
+    pose_stamped.pose = imuOdometry.pose.pose;
     imuPath.poses.push_back(pose_stamped);
     while (!imuPath.poses.empty() &&
            utils_->stamp2Sec(imuPath.poses.front().header.stamp) < lidarOdomTime - 1.0)

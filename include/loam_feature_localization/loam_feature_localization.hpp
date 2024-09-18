@@ -148,6 +148,7 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_corner;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_surface;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_imu;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_imu_incremental;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_laser;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_laser_incremental;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_imu;
@@ -159,13 +160,16 @@ private:
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_imu;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_laser;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_laser_incremental;
   rclcpp::CallbackGroup::SharedPtr callbackGroupOdom;
 
-  std::unique_ptr<tf2_ros::TransformBroadcaster> laser_tf_;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> pub_laser_tf_;
+  std::shared_ptr<tf2_ros::TransformBroadcaster> pub_base_link_tf_;
 
   void imu_handler(const sensor_msgs::msg::Imu::SharedPtr imu_msg);
   void imu_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
   void laser_odometry_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
+  void laser_odometry_incremental_handler(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
   void cloud_handler(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
 //  void cloud_handler_image_projection(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
 //  void cloud_handler_feature_extraction(const sensor_msgs::msg::PointCloud2::SharedPtr laser_cloud_msg);
